@@ -1,30 +1,39 @@
 import socket
 import time
 import threading
+import random
 from flask import Flask
 
 # --- CONFIGURAÇÕES ---
 SERVER = "irc.ptnet.org"
 PORT = 6667
 NICK = "TheOG"
-CHANNEL = "#TheOG"
+CHANNEL = "#OG"
+
+# --- LISTA DE FRASES PARA CUMPRIMENTOS (PT-PT) ---
+SAUDACOES = [
+    "Bem-vindo(a) ao #OG! Esperemos que te divirtas por cá. 😊",
+    "Olha quem é! Boas, tudo bem?",
+    "Mais um para a família #OG! Sente-te à vontade.",
+    "Boas! Se precisares de algo, os OPs estão por aí.",
+    "Bem-vindo ao canal mais original da PTnet! 🎧"
+]
 
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "TheOG está acordado e a vigiar o canal!"
+    return "TheOG está acordado e a interagir com o canal!"
 
 def run_web():
-    # O Render precisa que o Flask corra na porta 10000
     app.run(host='0.0.0.0', port=10000)
 
 def start_bot():
     while True:
         try:
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            irc.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1) # Mantém a ligação ativa
-            irc.settimeout(240) # Tempo máximo de espera antes de considerar "morto"
+            irc.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            irc.settimeout(240)
             
             print(f"Ligar a {SERVER}...")
             irc.connect((SERVER, PORT))
@@ -37,29 +46,44 @@ def start_bot():
                     data = irc.recv(2048).decode("utf-8", errors="ignore")
                     if not data: break
                     
-                    # Responder ao PING imediatamente (Crucial para não levar Quit)
                     if data.startswith("PING"):
                         irc.send(f"PONG {data.split()[1]}\r\n".encode())
                     
-                    # Entrar no canal e pedir OP se necessário
                     if "376" in data or "422" in data:
                         irc.send(f"JOIN {CHANNEL}\r\n".encode())
-                        # Se o nick estiver registado, podes adicionar a linha de senha aqui
+
+                    # --- DETETAR ENTRADA DE UTILIZADORES ---
+                    if "JOIN" in data and NICK not in data:
+                        # Extrai o nick de quem entrou
+                        user_join = data.split('!')[0][1:]
+                        saudacao = random.choice(SAUDACOES)
+                        time.sleep(1) # Espera um pouco para não ser instantâneo
+                        irc.send(f"PRIVMSG {CHANNEL} :{user_join}: {saudacao}\r\n".encode())
+
+                    # --- COMANDOS ! ---
+                    if "PRIVMSG" in data:
+                        msg = data.lower()
+                        parts = data.split()
                         
-                    # Auto-Rejoin se for expulso (Kick)
-                    if f"KICK {CHANNEL} {NICK}" in data:
-                        time.sleep(2)
-                        irc.send(f"JOIN {CHANNEL}\r\n".encode())
+                        # Comando !noticias (Exemplo manual ou link)
+                        if "!noticias" in msg:
+                            # Aqui podes colocar um link ou as últimas de hoje
+                            irc.send(f"PRIVMSG {CHANNEL} :📰 [NOTÍCIAS] Podes acompanhar as últimas notícias em: https://www.publico.pt ou https://www.rtp.pt/noticias\r\n".encode())
+
+                        # Comando !ajuda
+                        elif "!ajuda" in msg:
+                            irc.send(f"PRIVMSG {CHANNEL} :Comandos disponíveis: !noticias, !site, !regras e !theog\r\n".encode())
+
+                        # Comando !site
+                        elif "!site" in msg:
+                            irc.send(f"PRIVMSG {CHANNEL} :Visita o nosso cantinho na web: (insere aqui o teu link se tiveres)\r\n".encode())
 
                 except socket.timeout:
-                    print("Timeout! A reiniciar...")
                     break
         except Exception as e:
-            print(f"Erro: {e}. A tentar novamente em 15s...")
+            print(f"Erro: {e}. Re-tentando...")
             time.sleep(15)
 
 if __name__ == "__main__":
-    # Inicia o servidor Web primeiro para o Render ficar feliz
     threading.Thread(target=run_web, daemon=True).start()
-    # Inicia o Bot no processo principal
     start_bot()
