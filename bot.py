@@ -3,114 +3,111 @@ import time
 import threading
 import random
 import feedparser
+import google.generativeai as genai
 from flask import Flask
 
-# --- CONFIGURAÇÕES DE TRABALHO ---
+# --- CONFIGURAÇÕES ---
 SERVER = "irc.ptnet.org"
 PORT = 6667
 NICK = "TheOG"
-PASS = "Nasomet112#"  # <--- SUBSTITUI PELA SENHA QUE DEFINISTE NO NICKSERV
+PASS = "Nasomet112#" 
 CHANNEL = "#TheOG"
 ADMIN_NICK = "Emergency112"
+GEMINI_KEY = "AIzaSyC9SufTksX-GBv_XUZGMxee1iNmg7VozHg" # Obtém em aistudio.google.com
+
+# Configurar a IA
+genai.configure(api_key=GEMINI_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 SAUDACOES = [
     "Bem-vindo(a) ao #TheOG! 😊",
     "Olha quem é! Boas, tudo bem?",
     "Sente-te à vontade no nosso canal! 🎧",
     "Boas! É um prazer ter-te por cá.",
-    "Olá! Mais um membro para a equipa #TheOG!"
+    "Hey! Bem-vindo ao ponto de encontro. 🚀",
+    "Ora vivas! Que bom ver-te no canal."
 ]
 
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return f"TheOG Operacional - Admin: {ADMIN_NICK}"
+    return "TheOG AI Ativo"
+
+def get_ai_response(prompt):
+    try:
+        # Instrução de personalidade para a IA
+        full_prompt = f"És o assistente do canal #TheOG no IRC. Responde de forma curta e prestável: {prompt}"
+        response = model.generate_content(full_prompt)
+        return response.text.replace('\n', ' ').strip()[:300] # Limite de caracteres para IRC
+    except:
+        return "Estou a processar muita informação agora. Tenta daqui a pouco!"
 
 def get_last_news():
     try:
-        # Busca notícias reais da RTP (Última Hora)
         feed = feedparser.parse("https://www.rtp.pt/noticias/rss")
         if feed.entries:
-            # Pegamos nas 3 notícias mais recentes
             top_3 = feed.entries[:3]
-            noticias = []
-            for entry in top_3:
-                # Limpa o título de espaços extra
-                noticias.append(entry.title.strip())
+            noticias = [entry.title.strip() for entry in top_3]
             return " | ".join(noticias)
         return "Sem notícias de momento."
-    except Exception:
+    except:
         return "Erro ao aceder ao serviço de notícias."
 
 def start_bot():
     while True:
         try:
-            print(f"A ligar a {SERVER}...")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             irc.settimeout(120)
             irc.connect((SERVER, PORT))
             
-            # Login Inicial
             irc.send(f"NICK {NICK}\r\n".encode())
-            irc.send(f"USER {NICK} 8 * :Ferramenta de Gestao #TheOG\r\n".encode())
+            irc.send(f"USER {NICK} 8 * :Assistente AI #TheOG\r\n".encode())
             
             while True:
                 data = irc.recv(2048).decode("utf-8", errors="ignore")
                 if not data: break
                 
-                # Responder ao PING (Crucial para não cair)
                 if data.startswith("PING"):
                     irc.send(f"PONG {data.split()[1]}\r\n".encode())
 
-                # Quando o servidor está pronto (End of MOTD)
-                if "376" in data or "422" in data:
-                    # 1. Identificar com o NickServ
-                    print("A identificar com o NickServ...")
-                    irc.send(f"PRIVMSG NickServ :IDENTIFY {PASS}\r\n".encode())
-                    time.sleep(3) # Pausa para o servidor processar a senha
-                    
-                    # 2. Entrar no Canal
-                    irc.send(f"JOIN {CHANNEL}\r\n".encode())
-                    time.sleep(1)
-                    
-                    # 3. Mensagem de Boas-vindas ao Admin
-                    irc.send(f"PRIVMSG {CHANNEL} :[SISTEMA] TheOG Identificado e Online. Comandante {ADMIN_NICK}, estou ao seu dispor! 🚀\r\n".encode())
+                if "433" in data:
+                    irc.send(f"PRIVMSG NickServ :GHOST {NICK} {PASS}\r\n".encode())
+                    time.sleep(2)
+                    irc.send(f"NICK {NICK}\r\n".encode())
 
-                # CUMPRIMENTOS: Deteta a entrada de utilizadores
-                if " JOIN " in data:
+                if "376" in data or "422" in data:
+                    irc.send(f"PRIVMSG NickServ :IDENTIFY {PASS}\r\n".encode())
+                    time.sleep(3)
+                    irc.send(f"JOIN {CHANNEL}\r\n".encode())
+
+                # Cumprimentos
+                if " JOIN " in data and f" JOIN {CHANNEL}" in data:
                     user_nick = data.split('!')[0][1:]
-                    # Evita que o bot se cumprimente a si próprio
-                    if user_nick.lower() != NICK.lower():
+                    ignore = [NICK.lower(), "adamastor", "chanserv", "nickserv", "memoserv"]
+                    if user_nick.lower() not in ignore:
                         saudacao = random.choice(SAUDACOES)
-                        time.sleep(2) # Delay para parecer humano
+                        time.sleep(2)
                         irc.send(f"PRIVMSG {CHANNEL} :{user_nick}: {saudacao}\r\n".encode())
 
-                # COMANDOS DE CHAT
+                # Comandos e Inteligência Artificial
                 if "PRIVMSG" in data:
-                    msg = data.lower()
+                    msg_full = data.split(f"PRIVMSG {CHANNEL} :")[1] if f"PRIVMSG {CHANNEL} :" in data else ""
+                    user_talker = data.split('!')[0][1:]
                     
-                    # Comando !noticias
-                    if "!noticias" in msg:
-                        txt_noticias = get_last_news()
-                        irc.send(f"PRIVMSG {CHANNEL} :📰 [ÚLTIMA HORA]: {txt_noticias}\r\n".encode())
+                    if "!noticias" in msg_full.lower():
+                        irc.send(f"PRIVMSG {CHANNEL} :📰 [ÚLTIMA HORA]: {get_last_news()}\r\n".encode())
                     
-                    # Comando !ajuda
-                    elif "!ajuda" in msg:
-                        irc.send(f"PRIVMSG {CHANNEL} :Comandos: !noticias | !status | !ajuda\r\n".encode())
+                    # Se alguém chamar o bot pelo nome (IA)
+                    elif NICK.lower() in msg_full.lower():
+                        pergunta = msg_full.lower().replace(NICK.lower(), "").strip()
+                        if pergunta:
+                            resposta_ia = get_ai_response(pergunta)
+                            irc.send(f"PRIVMSG {CHANNEL} :{user_talker}: {resposta_ia}\r\n".encode())
 
-                    # Comando !status
-                    elif "!status" in msg:
-                        irc.send(f"PRIVMSG {CHANNEL} :[STATUS] Ligado a {SERVER}. Admin: {ADMIN_NICK}. Servidor: Render Frankfurt.\r\n".encode())
-
-        except Exception as e:
-            print(f"Erro: {e}. A tentar reconectar em 20 segundos...")
+        except Exception:
             time.sleep(20)
 
 if __name__ == "__main__":
-    # Servidor Web para o Render e Cron-job não deixarem o bot dormir
-    web_thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=10000), daemon=True)
-    web_thread.start()
-    
-    # Inicia o Bot
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=10000), daemon=True).start()
     start_bot()
