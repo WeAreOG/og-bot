@@ -13,7 +13,7 @@ NICK = "TheOG"
 PASS = "Nasomet112#" 
 CHANNEL = "#TheOG"
 ADMIN_NICK = "Emergency112"
-GEMINI_KEY = "AIzaSyC9SufTksX-GBv_XUZGMxee1iNmg7VozHg" # Obtém em aistudio.google.com
+GEMINI_KEY = "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" # Obtém em aistudio.google.com
 
 # Configurar a IA
 genai.configure(api_key=GEMINI_KEY)
