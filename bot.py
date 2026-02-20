@@ -7,7 +7,7 @@ from flask import Flask
 SERVER = "irc.ptnet.org"
 PORT = 6667
 NICK = "TheOG"
-CHANNEL = "#OG"
+CHANNEL = "#TheOG"
 USER = "TheOG 0 * :Bot oficial do Canal #OG"
 
 # --- CONFIGURAÇÃO PARA O RENDER ---
