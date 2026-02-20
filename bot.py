@@ -8,7 +8,7 @@ from flask import Flask
 SERVER = "irc.ptnet.org"
 PORT = 6667
 NICK = "TheOG"
-CHANNEL = "#OG"
+CHANNEL = "#TheOG"
 
 # --- LISTA DE FRASES PARA CUMPRIMENTOS (PT-PT) ---
 SAUDACOES = [
