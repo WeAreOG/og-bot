@@ -16,7 +16,7 @@ ADMIN_NICK = "Emergency112"
 GEMINI_KEY = "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" # Obtém em aistudio.google.com
 
 # Configurar a IA
-genai.configure(api_key=GEMINI_KEY)
+genai.configure(api_key=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)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 SAUDACOES = [
