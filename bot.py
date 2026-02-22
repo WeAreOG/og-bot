@@ -3,7 +3,7 @@ import time
 import threading
 import random
 import feedparser
-import google.generativeai as genai
+import requests
 from flask import Flask
 
 # --- CONFIGURAÇÕES ---
@@ -13,11 +13,11 @@ NICK = "TheOG"
 PASS = "Nasomet112#" 
 CHANNEL = "#TheOG"
 ADMIN_NICK = "Emergency112"
-GEMINI_KEY = "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" # Obtém em aistudio.google.com
 
-# Configurar a IA
-genai.configure(api_key=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)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# API HUGGING FACE
+HF_TOKEN = "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"
+# Usando Llama-3.2-3B por ser rápido e eficiente para IRC
+HF_API_URL = "https://api-inference.huggingface.co/models/meta-llama/Llama-3.2-3B-Instruct"
 
 SAUDACOES = [
     "Bem-vindo(a) ao #TheOG! 😊",
@@ -32,16 +32,38 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "TheOG AI Ativo"
+    return "TheOG AI Ativo (Hugging Face Mode)"
 
 def get_ai_response(prompt):
     try:
-        # Instrução de personalidade para a IA
-        full_prompt = f"És o assistente do canal #TheOG no IRC. Responde de forma curta e prestável: {prompt}"
-        response = model.generate_content(full_prompt)
-        return response.text.replace('\n', ' ').strip()[:300] # Limite de caracteres para IRC
-    except:
-        return "Estou a processar muita informação agora. Tenta daqui a pouco!"
+        headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+        # Estrutura de prompt para modelos Llama 3
+        payload = {
+            "inputs": f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nÉs o assistente do canal #TheOG. Responde de forma curta e amigável em português.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
+            "parameters": {
+                "max_new_tokens": 200,
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "return_full_text": False
+            }
+        }
+        
+        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=15)
+        result = response.json()
+        
+        # Se o modelo estiver a carregar (loading)
+        if isinstance(result, dict) and "estimated_time" in result:
+            return "Estou a acordar os meus neurónios... tenta de novo em 10 segundos!"
+
+        if isinstance(result, list) and len(result) > 0:
+            text = result[0].get('generated_text', '')
+            return text.replace('\n', ' ').strip()[:300]
+        
+        return "Fiquei sem palavras agora. Podes repetir?"
+        
+    except Exception as e:
+        print(f"Erro HF: {e}")
+        return "Opa, tive um curto-circuito. Tenta daqui a pouco!"
 
 def get_last_news():
     try:
@@ -81,7 +103,6 @@ def start_bot():
                     time.sleep(3)
                     irc.send(f"JOIN {CHANNEL}\r\n".encode())
 
-                # Cumprimentos
                 if " JOIN " in data and f" JOIN {CHANNEL}" in data:
                     user_nick = data.split('!')[0][1:]
                     ignore = [NICK.lower(), "adamastor", "chanserv", "nickserv", "memoserv"]
@@ -90,24 +111,26 @@ def start_bot():
                         time.sleep(2)
                         irc.send(f"PRIVMSG {CHANNEL} :{user_nick}: {saudacao}\r\n".encode())
 
-                # Comandos e Inteligência Artificial
                 if "PRIVMSG" in data:
-                    msg_full = data.split(f"PRIVMSG {CHANNEL} :")[1] if f"PRIVMSG {CHANNEL} :" in data else ""
-                    user_talker = data.split('!')[0][1:]
-                    
-                    if "!noticias" in msg_full.lower():
-                        irc.send(f"PRIVMSG {CHANNEL} :📰 [ÚLTIMA HORA]: {get_last_news()}\r\n".encode())
-                    
-                    # Se alguém chamar o bot pelo nome (IA)
-                    elif NICK.lower() in msg_full.lower():
-                        pergunta = msg_full.lower().replace(NICK.lower(), "").strip()
-                        if pergunta:
-                            resposta_ia = get_ai_response(pergunta)
-                            irc.send(f"PRIVMSG {CHANNEL} :{user_talker}: {resposta_ia}\r\n".encode())
+                    parts = data.split(f"PRIVMSG {CHANNEL} :")
+                    if len(parts) > 1:
+                        msg_full = parts[1]
+                        user_talker = data.split('!')[0][1:]
+                        
+                        if "!noticias" in msg_full.lower():
+                            irc.send(f"PRIVMSG {CHANNEL} :📰 [ÚLTIMA HORA]: {get_last_news()}\r\n".encode())
+                        
+                        elif NICK.lower() in msg_full.lower():
+                            pergunta = msg_full.lower().replace(NICK.lower(), "").strip()
+                            if pergunta:
+                                resposta_ia = get_ai_response(pergunta)
+                                irc.send(f"PRIVMSG {CHANNEL} :{user_talker}: {resposta_ia}\r\n".encode())
 
-        except Exception:
+        except Exception as e:
+            print(f"Erro Conexão: {e}")
             time.sleep(20)
 
 if __name__ == "__main__":
+    # Flask para manter o serviço ativo
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=10000), daemon=True).start()
     start_bot()
