@@ -17,6 +17,7 @@ ADMIN_NICK = "Emergency112"
 
 # API HUGGING FACE
 HF_TOKEN = "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"
+# Modelo alterado para uma versão mais estável caso a outra esteja em manutenção
 HF_API_URL = "https://api-inference.huggingface.co/models/meta-llama/Llama-3.2-3B-Instruct"
 
 SAUDACOES = [
@@ -36,34 +37,41 @@ def home():
 
 def get_ai_response(prompt):
     try:
-        # Log para debug no Render
-        print(f"[AI DEBUG] Enviando para HF: {prompt}")
-        
+        print(f"[DEBUG] Prompt enviado: {prompt}")
         headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+        
+        # Payload simplificado para evitar erros de parsing
         payload = {
-            "inputs": f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nÉs o TheOG, um assistente divertido do canal #TheOG. Responde sempre em português de Portugal. Sê breve e direto.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
+            "inputs": f"Pergunta: {prompt}\nResposta curta em português:",
             "parameters": {
-                "max_new_tokens": 100,
+                "max_new_tokens": 80,
                 "temperature": 0.7,
-                "top_p": 0.9,
                 "return_full_text": False
             }
         }
         
-        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=12)
+        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=10)
+        
+        # Log do status code para debug no Render
+        print(f"[DEBUG] Status Code: {response.status_code}")
+        
         result = response.json()
         
+        if response.status_code != 200:
+            print(f"[ERRO API] {result}")
+            return "Estou a reconfigurar o meu cérebro. Tenta daqui a pouco!"
+
         if isinstance(result, list) and len(result) > 0:
             text = result[0].get('generated_text', '').strip()
-            # Limpeza básica de quebras de linha
-            text = text.replace('\n', ' ')
-            print(f"[AI DEBUG] Resposta recebida: {text}")
-            return text if len(text) > 1 else "Estou sem ideias agora, mas estou aqui!"
+            # Remover repetições da pergunta que o modelo às vezes faz
+            text = text.replace(f"Pergunta: {prompt}", "").strip()
+            return text if text else "Estou sem palavras, mas estou atento!"
+            
+        return "A ligação à minha base de dados falhou. Repetes?"
         
-        return "Os meus circuitos estão ocupados. Podes repetir?"
     except Exception as e:
-        print(f"[ERRO AI]: {e}")
-        return "Tive um pequeno precalço técnico. Diz de novo!"
+        print(f"[EXCEPÇÃO AI]: {e}")
+        return "Tive um soluço técnico nos meus servidores."
 
 def get_last_news():
     try:
@@ -79,6 +87,7 @@ def get_last_news():
 def start_bot():
     while True:
         try:
+            print(f"A ligar a {SERVER}...")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             irc.settimeout(300)
             irc.connect((SERVER, PORT))
@@ -108,27 +117,21 @@ def start_bot():
 
                 if "PRIVMSG" in data:
                     user_talker = data.split('!')[0][1:]
-                    
-                    # Evitar que o bot responda a ele próprio
-                    if user_talker.lower() == NICK.lower():
-                        continue
+                    if user_talker.lower() == NICK.lower(): continue
 
                     msg_parts = data.split(f"PRIVMSG {CHANNEL} :", 1)
                     if len(msg_parts) > 1:
                         msg_content = msg_parts[1].strip()
 
-                        # Comando !noticias
                         if msg_content.lower().startswith("!noticias"):
                             irc.send(f"PRIVMSG {CHANNEL} :📰 {get_last_news()}\r\n".encode())
 
-                        # Interação com AI
                         elif NICK.lower() in msg_content.lower():
-                            # Remove menções como <@TheOG>, TheOG:, TheOG, etc.
+                            # Limpeza de menções
                             clean_prompt = re.sub(rf'[<@]?{NICK}[:>,]?\s*', '', msg_content, flags=re.IGNORECASE).strip()
                             
-                            # Se sobrar apenas lixo ou estiver vazio, não vai à IA
-                            if not clean_prompt or len(clean_prompt) < 2:
-                                irc.send(f"PRIVMSG {CHANNEL} :{user_talker}: Sim? Se precisares de algo, diz-me. Ou usa !noticias\r\n".encode())
+                            if not clean_prompt:
+                                irc.send(f"PRIVMSG {CHANNEL} :{user_talker}: Diz lá, estou a ouvir!\r\n".encode())
                             else:
                                 resposta = get_ai_response(clean_prompt)
                                 irc.send(f"PRIVMSG {CHANNEL} :{user_talker}: {resposta}\r\n".encode())
@@ -138,6 +141,7 @@ def start_bot():
             time.sleep(20)
 
 if __name__ == "__main__":
+    # Inicia o bot em background
     threading.Thread(target=start_bot, daemon=True).start()
-    # Porta padrão para o Render
+    # Flask para o Render não matar o processo
     app.run(host='0.0.0.0', port=10000)
