@@ -13,93 +13,99 @@ PORT = 6667
 NICK = "TheOG"
 PASS = "Nasomet112#" 
 CHANNEL = "#TheOG"
-ADMIN_NICK = "Emergency112"
-
-# API HUGGING FACE
 HF_TOKEN = "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"
-# Modelo alterado para uma versão mais estável caso a outra esteja em manutenção
 HF_API_URL = "https://api-inference.huggingface.co/models/meta-llama/Llama-3.2-3B-Instruct"
 
-SAUDACOES = [
-    "Bem-vindo(a) ao #TheOG! 😊",
-    "Olha quem é! Boas, tudo bem?",
-    "Sente-te à vontade no nosso canal! 🎧",
-    "Boas! É um prazer ter-te por cá.",
-    "Hey! Bem-vindo ao ponto de encontro. 🚀",
-    "Ora vivas! Que bom ver-te no canal."
+# --- BANCO DE DADOS LOCAL ---
+# Lista de nicks que o bot viu falar (para as frases aleatórias)
+nicks_ativos = set()
+
+FRASES_ALEATORIAS = [
+    "Sinto-me incrivelmente bem hoje no #TheOG!",
+    "Alguém já disse ao {nick} que ele é uma lenda?",
+    "A vida no IRC é melhor com amigos como vocês.",
+    "O {nick} anda muito calado... tudo bem por aí?",
+    "Sabiam que o #TheOG é o melhor canal da PTNet?",
+    "Estou aqui a processar dados e a pensar como o {nick} é porreiro.",
+    "Beber café virtual e ver o chat passar... que paz!",
+    "Se o {nick} fosse um comando, seria o !top.",
+    # ... Adiciona aqui as tuas 200 frases ...
+    "Sinto que hoje vai ser um grande dia para o {nick}!",
+    "Olá malta! Estou só a passar para dizer que adoro este canal."
 ]
+
+SAUDACOES = ["Bem-vindo(a)!", "Boas! Tudo bem?", "Olha quem é! Senta-te e relaxa."]
 
 app = Flask(__name__)
 
 @app.route('/')
-def home():
-    return "TheOG AI Status: Online", 200
+def home(): return "TheOG AI Online", 200
+
+# --- FUNÇÕES DE SUPORTE ---
 
 def get_ai_response(prompt):
     try:
-        print(f"[DEBUG] Prompt enviado: {prompt}")
         headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-        
-        # Payload simplificado para evitar erros de parsing
-        payload = {
-            "inputs": f"Pergunta: {prompt}\nResposta curta em português:",
-            "parameters": {
-                "max_new_tokens": 80,
-                "temperature": 0.7,
-                "return_full_text": False
-            }
-        }
-        
+        payload = {"inputs": f"Pergunta: {prompt}\nResposta curta:", "parameters": {"max_new_tokens": 50}}
         response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=10)
-        
-        # Log do status code para debug no Render
-        print(f"[DEBUG] Status Code: {response.status_code}")
-        
-        result = response.json()
-        
-        if response.status_code != 200:
-            print(f"[ERRO API] {result}")
-            return "Estou a reconfigurar o meu cérebro. Tenta daqui a pouco!"
+        if response.status_code == 200:
+            res = response.json()[0].get('generated_text', '')
+            return res.split("Resposta curta:")[-1].strip()
+        return "Estou a pensar... mas o cérebro falhou."
+    except: return "Erro nos meus neurónios!"
 
-        if isinstance(result, list) and len(result) > 0:
-            text = result[0].get('generated_text', '').strip()
-            # Remover repetições da pergunta que o modelo às vezes faz
-            text = text.replace(f"Pergunta: {prompt}", "").strip()
-            return text if text else "Estou sem palavras, mas estou atento!"
-            
-        return "A ligação à minha base de dados falhou. Repetes?"
+def get_meteo(cidade):
+    try:
+        # 1. Obter coordenadas da cidade/concelho
+        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={cidade}&count=1&language=pt"
+        geo_res = requests.get(geo_url).json()
+        if not geo_res.get('results'): return "Concelho não encontrado."
         
-    except Exception as e:
-        print(f"[EXCEPÇÃO AI]: {e}")
-        return "Tive um soluço técnico nos meus servidores."
+        lat = geo_res['results'][0]['latitude']
+        lon = geo_res['results'][0]['longitude']
+        nome = geo_res['results'][0]['name']
+
+        # 2. Obter meteorologia
+        w_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+        w_res = requests.get(w_url).json()
+        temp = w_res['current_weather']['temperature']
+        wind = w_res['current_weather']['windspeed']
+        
+        return f"Meteo em {nome}: {temp}°C | Vento: {wind}km/h"
+    except: return "Erro ao consultar meteorologia."
 
 def get_last_news():
     try:
         feed = feedparser.parse("https://www.rtp.pt/noticias/rss")
-        if feed.entries:
-            top_3 = feed.entries[:3]
-            noticias = [entry.title.strip() for entry in top_3]
-            return " | ".join(noticias)
-        return "Sem notícias por agora."
-    except:
-        return "Não consegui ler as notícias."
+        return " | ".join([e.title for e in feed.entries[:2]])
+    except: return "Sem notícias."
+
+# --- LÓGICA DO BOT ---
 
 def start_bot():
     while True:
         try:
-            print(f"A ligar a {SERVER}...")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             irc.settimeout(300)
             irc.connect((SERVER, PORT))
-            
             irc.send(f"NICK {NICK}\r\n".encode())
             irc.send(f"USER {NICK} 8 * :Assistente #TheOG\r\n".encode())
             
+            # Thread para frases aleatórias de 15 em 15 minutos
+            def auto_talk():
+                while True:
+                    time.sleep(900) # 15 minutos
+                    if nicks_ativos:
+                        target = random.choice(list(nicks_ativos))
+                        frase = random.choice(FRASES_ALEATORIAS).format(nick=target)
+                        try: irc.send(f"PRIVMSG {CHANNEL} :{frase}\r\n".encode())
+                        except: break
+
+            threading.Thread(target=auto_talk, daemon=True).start()
+
             while True:
-                raw_data = irc.recv(2048)
-                if not raw_data: break
-                
-                data = raw_data.decode("utf-8", errors="ignore")
+                data = irc.recv(2048).decode("utf-8", errors="ignore")
+                if not data: break
                 
                 if data.startswith("PING"):
                     irc.send(f"PONG {data.split()[1]}\r\n".encode())
@@ -110,38 +116,39 @@ def start_bot():
                     time.sleep(2)
                     irc.send(f"JOIN {CHANNEL}\r\n".encode())
 
-                if " JOIN " in data:
-                    user_nick = data.split('!')[0][1:]
-                    if user_nick.lower() not in [NICK.lower(), "nickserv", "chanserv"]:
-                        irc.send(f"PRIVMSG {CHANNEL} :{user_nick}: {random.choice(SAUDACOES)}\r\n".encode())
-
                 if "PRIVMSG" in data:
-                    user_talker = data.split('!')[0][1:]
-                    if user_talker.lower() == NICK.lower(): continue
-
+                    user = data.split('!')[0][1:]
+                    nicks_ativos.add(user) # Adiciona à lista de nicks vistos
+                    
                     msg_parts = data.split(f"PRIVMSG {CHANNEL} :", 1)
                     if len(msg_parts) > 1:
-                        msg_content = msg_parts[1].strip()
+                        cmd = msg_parts[1].strip().lower()
 
-                        if msg_content.lower().startswith("!noticias"):
+                        # COMANDOS
+                        if cmd == "!comandos":
+                            irc.send(f"PRIVMSG {CHANNEL} :Comandos: !noticias, !meteo <concelho>, !comandos ou fala comigo mencionando {NICK}\r\n".encode())
+                        
+                        elif cmd.startswith("!meteo"):
+                            cidade = cmd.replace("!meteo", "").strip()
+                            if cidade:
+                                res = get_meteo(cidade)
+                                irc.send(f"PRIVMSG {CHANNEL} :{user}: {res}\r\n".encode())
+                            else:
+                                irc.send(f"PRIVMSG {CHANNEL} :{user}: Indica um concelho. Ex: !meteo Lisboa\r\n".encode())
+
+                        elif cmd.startswith("!noticias"):
                             irc.send(f"PRIVMSG {CHANNEL} :📰 {get_last_news()}\r\n".encode())
 
-                        elif NICK.lower() in msg_content.lower():
-                            # Limpeza de menções
-                            clean_prompt = re.sub(rf'[<@]?{NICK}[:>,]?\s*', '', msg_content, flags=re.IGNORECASE).strip()
-                            
-                            if not clean_prompt:
-                                irc.send(f"PRIVMSG {CHANNEL} :{user_talker}: Diz lá, estou a ouvir!\r\n".encode())
-                            else:
-                                resposta = get_ai_response(clean_prompt)
-                                irc.send(f"PRIVMSG {CHANNEL} :{user_talker}: {resposta}\r\n".encode())
+                        elif NICK.lower() in cmd:
+                            prompt = re.sub(rf'[<@]?{NICK}[:>,]?\s*', '', cmd, flags=re.IGNORECASE).strip()
+                            if prompt:
+                                resp = get_ai_response(prompt)
+                                irc.send(f"PRIVMSG {CHANNEL} :{user}: {resp}\r\n".encode())
 
         except Exception as e:
-            print(f"Erro de Conexão: {e}")
+            print(f"Erro: {e}")
             time.sleep(20)
 
 if __name__ == "__main__":
-    # Inicia o bot em background
     threading.Thread(target=start_bot, daemon=True).start()
-    # Flask para o Render não matar o processo
     app.run(host='0.0.0.0', port=10000)
