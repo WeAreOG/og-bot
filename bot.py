@@ -32,37 +32,38 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "TheOG AI Status: Online e Operacional", 200
+    return "TheOG AI Status: Online", 200
 
 def get_ai_response(prompt):
     try:
+        # Log para debug no Render
+        print(f"[AI DEBUG] Enviando para HF: {prompt}")
+        
         headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-        # Prompt mais robusto para evitar respostas de confusão
         payload = {
-            "inputs": f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nÉs o assistente do canal IRC #TheOG. Responde de forma curta, prestável e sempre em português de Portugal.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
+            "inputs": f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nÉs o TheOG, um assistente divertido do canal #TheOG. Responde sempre em português de Portugal. Sê breve e direto.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
             "parameters": {
-                "max_new_tokens": 150,
+                "max_new_tokens": 100,
                 "temperature": 0.7,
                 "top_p": 0.9,
                 "return_full_text": False
             }
         }
         
-        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=15)
+        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=12)
         result = response.json()
         
-        if isinstance(result, dict) and "estimated_time" in result:
-            return "Estou a processar... tenta de novo em 10 segundos!"
-
         if isinstance(result, list) and len(result) > 0:
-            text = result[0].get('generated_text', '')
-            res = text.replace('\n', ' ').strip()
-            return res[:300] if len(res) > 2 else "Estou aqui! O que precisas?"
+            text = result[0].get('generated_text', '').strip()
+            # Limpeza básica de quebras de linha
+            text = text.replace('\n', ' ')
+            print(f"[AI DEBUG] Resposta recebida: {text}")
+            return text if len(text) > 1 else "Estou sem ideias agora, mas estou aqui!"
         
-        return "Diz-me algo mais específico para eu te conseguir ajudar!"
+        return "Os meus circuitos estão ocupados. Podes repetir?"
     except Exception as e:
-        print(f"Erro AI: {e}")
-        return "Tive um soluço técnico. Podes repetir a pergunta?"
+        print(f"[ERRO AI]: {e}")
+        return "Tive um pequeno precalço técnico. Diz de novo!"
 
 def get_last_news():
     try:
@@ -71,88 +72,72 @@ def get_last_news():
             top_3 = feed.entries[:3]
             noticias = [entry.title.strip() for entry in top_3]
             return " | ".join(noticias)
-        return "Sem notícias de última hora."
-    except Exception as e:
-        print(f"Erro RSS: {e}")
-        return "Não consegui aceder às notícias agora."
+        return "Sem notícias por agora."
+    except:
+        return "Não consegui ler as notícias."
 
 def start_bot():
     while True:
         try:
-            print(f"A conectar a {SERVER}...")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             irc.settimeout(300)
             irc.connect((SERVER, PORT))
             
             irc.send(f"NICK {NICK}\r\n".encode())
-            irc.send(f"USER {NICK} 8 * :Assistente AI #TheOG\r\n".encode())
+            irc.send(f"USER {NICK} 8 * :Assistente #TheOG\r\n".encode())
             
             while True:
-                try:
-                    raw_data = irc.recv(2048)
-                    if not raw_data: break
+                raw_data = irc.recv(2048)
+                if not raw_data: break
+                
+                data = raw_data.decode("utf-8", errors="ignore")
+                
+                if data.startswith("PING"):
+                    irc.send(f"PONG {data.split()[1]}\r\n".encode())
+                    continue
+
+                if "376" in data or "422" in data:
+                    irc.send(f"PRIVMSG NickServ :IDENTIFY {PASS}\r\n".encode())
+                    time.sleep(2)
+                    irc.send(f"JOIN {CHANNEL}\r\n".encode())
+
+                if " JOIN " in data:
+                    user_nick = data.split('!')[0][1:]
+                    if user_nick.lower() not in [NICK.lower(), "nickserv", "chanserv"]:
+                        irc.send(f"PRIVMSG {CHANNEL} :{user_nick}: {random.choice(SAUDACOES)}\r\n".encode())
+
+                if "PRIVMSG" in data:
+                    user_talker = data.split('!')[0][1:]
                     
-                    data = raw_data.decode("utf-8", errors="ignore")
-                    
-                    if data.startswith("PING"):
-                        irc.send(f"PONG {data.split()[1]}\r\n".encode())
+                    # Evitar que o bot responda a ele próprio
+                    if user_talker.lower() == NICK.lower():
                         continue
 
-                    if "433" in data:
-                        irc.send(f"PRIVMSG NickServ :GHOST {NICK} {PASS}\r\n".encode())
-                        time.sleep(1)
-                        irc.send(f"NICK {NICK}\r\n".encode())
+                    msg_parts = data.split(f"PRIVMSG {CHANNEL} :", 1)
+                    if len(msg_parts) > 1:
+                        msg_content = msg_parts[1].strip()
 
-                    if "376" in data or "422" in data:
-                        irc.send(f"PRIVMSG NickServ :IDENTIFY {PASS}\r\n".encode())
-                        time.sleep(2)
-                        irc.send(f"JOIN {CHANNEL}\r\n".encode())
+                        # Comando !noticias
+                        if msg_content.lower().startswith("!noticias"):
+                            irc.send(f"PRIVMSG {CHANNEL} :📰 {get_last_news()}\r\n".encode())
 
-                    # Boas-vindas corrigidas
-                    if " JOIN " in data:
-                        user_nick = data.split('!')[0][1:]
-                        if user_nick.lower() not in [NICK.lower(), "chanserv", "nickserv"]:
-                            saudacao = random.choice(SAUDACOES)
-                            time.sleep(2)
-                            irc.send(f"PRIVMSG {CHANNEL} :{user_nick}: {saudacao}\r\n".encode())
-
-                    # Mensagens e Comandos
-                    if "PRIVMSG" in data:
-                        user_talker = data.split('!')[0][1:]
-                        msg_parts = data.split(f"PRIVMSG {CHANNEL} :", 1)
-                        
-                        if len(msg_parts) > 1:
-                            msg_content = msg_parts[1].strip()
-
-                            # Comando !noticias
-                            if msg_content.lower().startswith("!noticias"):
-                                news = get_last_news()
-                                irc.send(f"PRIVMSG {CHANNEL} :📰 {news}\r\n".encode())
-
-                            # Resposta AI (Limpeza de menções agressiva)
-                            elif NICK.lower() in msg_content.lower():
-                                # Remove tags de menção do tipo <@TheOG>, TheOG:, TheOG, etc.
-                                clean_prompt = re.sub(rf'[<@]?{NICK}[:>,]?\s*', '', msg_content, flags=re.IGNORECASE).strip()
-                                
-                                if clean_prompt:
-                                    resposta = get_ai_response(clean_prompt)
-                                    irc.send(f"PRIVMSG {CHANNEL} :{user_talker}: {resposta}\r\n".encode())
-                                else:
-                                    # Se apenas chamarem o nome sem texto
-                                    irc.send(f"PRIVMSG {CHANNEL} :{user_talker}: Sim? Se precisares de ajuda diz algo ou usa !noticias\r\n".encode())
-
-                except socket.timeout:
-                    irc.send(f"PING {SERVER}\r\n".encode())
-                except Exception as e:
-                    print(f"Erro no loop: {e}")
-                    break
+                        # Interação com AI
+                        elif NICK.lower() in msg_content.lower():
+                            # Remove menções como <@TheOG>, TheOG:, TheOG, etc.
+                            clean_prompt = re.sub(rf'[<@]?{NICK}[:>,]?\s*', '', msg_content, flags=re.IGNORECASE).strip()
+                            
+                            # Se sobrar apenas lixo ou estiver vazio, não vai à IA
+                            if not clean_prompt or len(clean_prompt) < 2:
+                                irc.send(f"PRIVMSG {CHANNEL} :{user_talker}: Sim? Se precisares de algo, diz-me. Ou usa !noticias\r\n".encode())
+                            else:
+                                resposta = get_ai_response(clean_prompt)
+                                irc.send(f"PRIVMSG {CHANNEL} :{user_talker}: {resposta}\r\n".encode())
 
         except Exception as e:
             print(f"Erro de Conexão: {e}")
             time.sleep(20)
 
 if __name__ == "__main__":
-    # Inicia o bot
     threading.Thread(target=start_bot, daemon=True).start()
-    # Flask para o Render
+    # Porta padrão para o Render
     app.run(host='0.0.0.0', port=10000)
