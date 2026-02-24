@@ -1,3 +1,5 @@
 flask
+requests
+spotipy
 feedparser
-google-generativeai
+gunicorn
