@@ -16,8 +16,17 @@ CHANNEL = "#TheOG"
 HF_TOKEN = "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"
 HF_API_URL = "https://api-inference.huggingface.co/models/meta-llama/Llama-3.2-3B-Instruct"
 
-# --- BASE DE DATA E FRASES (80 frases adicionadas) ---
+# --- BASE DE DADOS E FRASES ---
 nicks_ativos = set()
+
+# Saudações neutras para quando alguém entra no canal
+SAUDACOES_NEUTRAS = [
+    "Olá {nick}! É um prazer ter-te por aqui. Boas conversas!",
+    "Bem-vindo(a) ao #TheOG, {nick}! Como corre o teu dia?",
+    "Olha quem chegou! Viva {nick}, tudo bem contigo?",
+    "Saudações, {nick}! Senta-te e diverte-te connosco.",
+    "Hey {nick}! Que bom ver-te novamente no canal."
+]
 
 FRASES_ALEATORIAS = [
     "Sinto-me incrivelmente bem hoje por aqui!", "O {nick} é a alma deste canal.",
@@ -47,7 +56,7 @@ FRASES_ALEATORIAS = [
     "A minha memória RAM está cheia de bons momentos com o {nick}.", "O {nick} é o coração do #TheOG.",
     "Mantenham a calma e chamem o {nick}.", "O {nick} é o capitão deste navio virtual.",
     "A analisar o perfil do {nick}... resultado: Incrível.", "O {nick} nunca desilude.",
-    "O mundo precisa de mais nicks como {nick}.", "O {nick} é a peça que faltava no puzzle.",
+    "O world precisa de mais nicks como {nick}.", "O {nick} é a peça que faltava no puzzle.",
     "O {nick} é mais rápido que a minha fibra ótica.", "Respeito máximo pelo {nick}.",
     "O {nick} é o guru do IRC.", "O {nick} tem o dom da palavra.",
     "Sigo os passos do {nick} desde o primeiro login.", "O {nick} é uma lenda viva.",
@@ -66,34 +75,48 @@ FRASES_ALEATORIAS = [
 app = Flask(__name__)
 
 @app.route('/')
-def home(): return "TheOG Online", 200
+def home(): 
+    return "TheOG Online", 200
 
 # --- FUNÇÕES ---
 
 def get_ai_response(prompt):
     try:
         headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+        # Prompt estruturado para manter conversa fluida
+        full_prompt = (f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n"
+                       f"És o TheOG, um assistente amigável no canal IRC #TheOG. "
+                       f"Responde sempre em Português de Portugal, de forma natural e sem mencionar géneros. "
+                       f"Mantém a resposta curta.<|eot_id|><|start_header_id|>user<|end_header_id|>\n"
+                       f"{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n")
+        
         payload = {
-            "inputs": f"Responde de forma curta e amigável em português de Portugal:\nPergunta: {prompt}\nResposta:",
-            "parameters": {"max_new_tokens": 100, "temperature": 0.7}
+            "inputs": full_prompt,
+            "parameters": {
+                "max_new_tokens": 100,
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "return_full_text": False
+            }
         }
         response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=12)
         if response.status_code == 200:
-            res = response.json()[0].get('generated_text', '')
-            if "Resposta:" in res:
-                return res.split("Resposta:")[-1].strip().split('\n')[0]
-            return res.strip()
-    except: pass
-    return random.choice(["Estou a processar isso...", "Interessante, conta-me mais!", "Boa pergunta!"])
+            res = response.json()[0].get('generated_text', '').strip()
+            return res if res else "Estou aqui para conversar!"
+    except: 
+        pass
+    return random.choice(["Diz-me mais sobre isso.", "Interessante!", "Como posso ajudar?"])
 
 def get_meteo(cidade):
     try:
         geo = requests.get(f"https://geocoding-api.open-meteo.com/v1/search?name={cidade}&count=1").json()
-        if not geo.get('results'): return "Concelho não encontrado."
+        if not geo.get('results'): 
+            return "Concelho não encontrado."
         d = geo['results'][0]
         w = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude={d['latitude']}&longitude={d['longitude']}&current_weather=true").json()
         return f"Meteo em {d['name']}: {w['current_weather']['temperature']}°C | Vento: {w['current_weather']['windspeed']}km/h"
-    except: return "Erro ao obter meteorologia."
+    except: 
+        return "Erro ao obter meteorologia."
 
 def start_bot():
     while True:
@@ -103,32 +126,48 @@ def start_bot():
             irc.send(f"NICK {NICK}\r\n".encode())
             irc.send(f"USER {NICK} 8 * :Assistente #TheOG\r\n".encode())
             
-            # TIMER DE 15 MINUTOS (Intervalo garantido)
+            # TIMER DE 40 MINUTOS (2400 segundos)
             def auto_talk():
                 while True:
-                    time.sleep(900) # 900 segundos = 15 minutos
-                    if nicks_ativos:
-                        target = random.choice(list(nicks_ativos))
+                    time.sleep(2400) 
+                    candidatos = [n for n in nicks_ativos if n.lower() != "emergency112"]
+                    if candidatos:
+                        target = random.choice(candidatos)
                         msg = random.choice(FRASES_ALEATORIAS).format(nick=target)
-                        try: irc.send(f"PRIVMSG {CHANNEL} :{msg}\r\n".encode())
-                        except: break
+                        try: 
+                            irc.send(f"PRIVMSG {CHANNEL} :{msg}\r\n".encode())
+                        except: 
+                            break
             
             threading.Thread(target=auto_talk, daemon=True).start()
 
             while True:
                 raw = irc.recv(2048).decode("utf-8", errors="ignore")
-                if not raw: break
+                if not raw: 
+                    break
+                
                 if raw.startswith("PING"):
                     irc.send(f"PONG {raw.split()[1]}\r\n".encode())
                     continue
+                
                 if "376" in raw or "422" in raw:
                     irc.send(f"PRIVMSG NickServ :IDENTIFY {PASS}\r\n".encode())
                     time.sleep(2)
                     irc.send(f"JOIN {CHANNEL}\r\n".encode())
 
+                # --- DETETAR ENTRADA DE UTILIZADORES (JOIN) ---
+                if " JOIN " in raw:
+                    user_joined = raw.split('!')[0][1:]
+                    if user_joined.lower() != NICK.lower() and user_joined.lower() != "emergency112":
+                        nicks_ativos.add(user_joined)
+                        saudacao = random.choice(SAUDACOES_NEUTRAS).format(nick=user_joined)
+                        irc.send(f"PRIVMSG {CHANNEL} :{saudacao}\r\n".encode())
+
                 if "PRIVMSG" in raw:
                     user = raw.split('!')[0][1:]
-                    if user.lower() == NICK.lower(): continue
+                    if user.lower() == "emergency112" or user.lower() == NICK.lower():
+                        continue
+                    
                     nicks_ativos.add(user)
                     
                     m = raw.split(f"PRIVMSG {CHANNEL} :", 1)
@@ -139,15 +178,17 @@ def start_bot():
                         if cmd == "!comandos":
                             irc.send(f"PRIVMSG {user} :Comandos: !noticias, !meteo <cidade>, !comandos\r\n".encode())
                         elif cmd.startswith("!meteo"):
-                            irc.send(f"PRIVMSG {user} :{get_meteo(content[7:])}\r\n".encode())
+                            cidade = content[7:].strip()
+                            irc.send(f"PRIVMSG {CHANNEL} :{user}: {get_meteo(cidade)}\r\n".encode())
                         elif cmd.startswith("!noticias"):
                             feed = feedparser.parse("https://www.rtp.pt/noticias/rss")
                             news = " | ".join([e.title for e in feed.entries[:3]])
-                            irc.send(f"PRIVMSG {user} :📰 {news}\r\n".encode())
+                            irc.send(f"PRIVMSG {CHANNEL} :📰 {news}\r\n".encode())
                         elif NICK.lower() in cmd:
                             prompt = re.sub(rf'[<@]?{NICK}[:>,]?\s*', '', content, flags=re.IGNORECASE).strip()
                             irc.send(f"PRIVMSG {CHANNEL} :{user}: {get_ai_response(prompt)}\r\n".encode())
-        except: time.sleep(20)
+        except:
+            time.sleep(20)
 
 if __name__ == "__main__":
     threading.Thread(target=start_bot, daemon=True).start()
