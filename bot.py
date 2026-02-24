@@ -31,21 +31,23 @@ app = Flask(__name__)
 
 @app.route('/')
 def health_check():
-    return "TheOG está vivo!", 200
+    return "TheOG Online", 200
 
 # --- FUNÇÕES ---
 
 def get_ai_response(prompt):
     try:
         headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-        payload = {"inputs": f"<s>[INST] Tu és o TheOG no IRC. Responde curto em PT-PT: {prompt} [/INST]</s>", 
-                   "parameters": {"max_new_tokens": 60, "temperature": 0.7}}
+        payload = {
+            "inputs": f"<s>[INST] Tu és o TheOG no IRC. Responde curto em PT-PT: {prompt} [/INST]</s>", 
+            "parameters": {"max_new_tokens": 60, "temperature": 0.7}
+        }
         response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=8)
         if response.status_code == 200:
             res = response.json()[0].get('generated_text', '').strip()
             return re.sub(r'[\r\n\t]+', ' ', res)
     except: pass
-    return "Sintonizado na frequência certa!"
+    return "Estou sintonizado!"
 
 def get_or_create_playlist(sp):
     try:
@@ -69,16 +71,12 @@ def run_irc_bot():
 
     while True:
         try:
-            print(f"Tentando ligar a {SERVER}...")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            # Melhora a resiliência da conexão no Render
             irc.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             irc.connect((SERVER, PORT))
             
             irc.send(f"NICK {NICK}\r\n".encode())
             irc.send(f"USER {NICK} 8 * :TheOG Assistant\r\n".encode())
-
-            if not playlist_id: playlist_id = get_or_create_playlist(sp)
 
             while True:
                 data = irc.recv(2048).decode("utf-8", errors="ignore")
@@ -92,9 +90,58 @@ def run_irc_bot():
                     irc.send(f"PRIVMSG NickServ :IDENTIFY {PASS}\r\n".encode())
                     time.sleep(2)
                     irc.send(f"JOIN {CHANNEL}\r\n".encode())
+                    if not playlist_id: playlist_id = get_or_create_playlist(sp)
 
                 if "PRIVMSG" in data:
                     user = data.split('!')[0][1:]
                     
-                    # AGORA SÓ IGNORA O PRÓPRIO BOT (TheOG)
-                    if user.lower
+                    # CORREÇÃO DA LINHA 100:
+                    if user.lower() == NICK.lower(): 
+                        continue
+                    
+                    parts = data.split(f"PRIVMSG {CHANNEL} :", 1)
+                    if len(parts) > 1:
+                        msg = parts[1].strip()
+                        cmd = msg.lower()
+
+                        # --- COMANDOS ---
+                        if cmd.startswith("!music "):
+                            query = msg[7:].strip()
+                            search = sp.search(q=query, limit=1, type='track')
+                            if search['tracks']['items'] and playlist_id:
+                                track = search['tracks']['items'][0]
+                                sp.playlist_add_items(playlist_id, [track['id']])
+                                irc.send(f"PRIVMSG {CHANNEL} :✅ Adicionada: {track['name']}\r\n".encode())
+
+                        elif cmd == "!playlist":
+                            try:
+                                sp.start_playback(context_uri=f"spotify:playlist:{playlist_id}")
+                                irc.send(f"PRIVMSG {CHANNEL} :▶️ Playlist iniciada!\r\n".encode())
+                            except:
+                                irc.send(f"PRIVMSG {CHANNEL} :Dispositivo não encontrado. Abre o Spotify.\r\n".encode())
+
+                        elif cmd == "!skip":
+                            try:
+                                sp.next_track()
+                                irc.send(f"PRIVMSG {CHANNEL} :⏭️ Música saltada!\r\n".encode())
+                            except: pass
+
+                        elif cmd == "!noticias":
+                            feed = feedparser.parse("https://www.rtp.pt/noticias/rss")
+                            news = " | ".join([e.title for e in feed.entries[:2]])
+                            irc.send(f"PRIVMSG {CHANNEL} :📰 {news}\r\n".encode())
+
+                        elif NICK.lower() in cmd:
+                            prompt = re.sub(rf'{NICK}', '', msg, flags=re.IGNORECASE).strip()
+                            if prompt:
+                                response = get_ai_response(prompt)
+                                irc.send(f"PRIVMSG {CHANNEL} :{user}: {response}\r\n".encode())
+
+        except Exception as e:
+            print(f"Erro: {e}")
+            time.sleep(15)
+
+if __name__ == "__main__":
+    threading.Thread(target=run_irc_bot, daemon=True).start()
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
