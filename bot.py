@@ -13,13 +13,14 @@ PORT = 6667
 NICK = "TheOG"
 PASS = "Nasomet112#" 
 CHANNEL = "#TheOG"
+
+# Token e Novo Modelo (Mistral-7B)
 HF_TOKEN = "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"
-HF_API_URL = "https://api-inference.huggingface.co/models/meta-llama/Llama-3.2-3B-Instruct"
+HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
 
 # --- BASE DE DADOS E FRASES ---
 nicks_ativos = set()
 
-# Saudações neutras para quando alguém entra no canal
 SAUDACOES_NEUTRAS = [
     "Olá {nick}! É um prazer ter-te por aqui. Boas conversas!",
     "Bem-vindo(a) ao #TheOG, {nick}! Como corre o teu dia?",
@@ -83,29 +84,33 @@ def home():
 def get_ai_response(prompt):
     try:
         headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-        # Prompt estruturado para manter conversa fluida
-        full_prompt = (f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n"
-                       f"És o TheOG, um assistente amigável no canal IRC #TheOG. "
+        # Prompt simplificado para Mistral
+        full_prompt = (f"<s>[INST] Tu és o TheOG, um assistente no IRC #TheOG. "
                        f"Responde sempre em Português de Portugal, de forma natural e sem mencionar géneros. "
-                       f"Mantém a resposta curta.<|eot_id|><|start_header_id|>user<|end_header_id|>\n"
-                       f"{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n")
+                       f"Responde de forma muito curta à seguinte questão: {prompt} [/INST]</s>")
         
         payload = {
             "inputs": full_prompt,
             "parameters": {
-                "max_new_tokens": 100,
-                "temperature": 0.7,
+                "max_new_tokens": 80,
+                "temperature": 0.5,
                 "top_p": 0.9,
                 "return_full_text": False
             }
         }
-        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=12)
+        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=15)
+        
         if response.status_code == 200:
             res = response.json()[0].get('generated_text', '').strip()
-            return res if res else "Estou aqui para conversar!"
-    except: 
-        pass
-    return random.choice(["Diz-me mais sobre isso.", "Interessante!", "Como posso ajudar?"])
+            # Limpeza básica caso o modelo repita o prompt
+            return res if res else "Estou aqui!"
+        elif response.status_code == 503:
+            return "O meu cérebro está a carregar... tenta daqui a um minuto!"
+            
+    except Exception as e:
+        print(f"Erro na IA: {e}")
+        
+    return random.choice(["Diz-me mais.", "Interessante!", "Como posso ajudar?"])
 
 def get_meteo(cidade):
     try:
@@ -126,7 +131,6 @@ def start_bot():
             irc.send(f"NICK {NICK}\r\n".encode())
             irc.send(f"USER {NICK} 8 * :Assistente #TheOG\r\n".encode())
             
-            # TIMER DE 40 MINUTOS (2400 segundos)
             def auto_talk():
                 while True:
                     time.sleep(2400) 
@@ -143,8 +147,7 @@ def start_bot():
 
             while True:
                 raw = irc.recv(2048).decode("utf-8", errors="ignore")
-                if not raw: 
-                    break
+                if not raw: break
                 
                 if raw.startswith("PING"):
                     irc.send(f"PONG {raw.split()[1]}\r\n".encode())
@@ -155,7 +158,6 @@ def start_bot():
                     time.sleep(2)
                     irc.send(f"JOIN {CHANNEL}\r\n".encode())
 
-                # --- DETETAR ENTRADA DE UTILIZADORES (JOIN) ---
                 if " JOIN " in raw:
                     user_joined = raw.split('!')[0][1:]
                     if user_joined.lower() != NICK.lower() and user_joined.lower() != "emergency112":
@@ -187,7 +189,8 @@ def start_bot():
                         elif NICK.lower() in cmd:
                             prompt = re.sub(rf'[<@]?{NICK}[:>,]?\s*', '', content, flags=re.IGNORECASE).strip()
                             irc.send(f"PRIVMSG {CHANNEL} :{user}: {get_ai_response(prompt)}\r\n".encode())
-        except:
+        except Exception as e:
+            print(f"Erro: {e}")
             time.sleep(20)
 
 if __name__ == "__main__":
