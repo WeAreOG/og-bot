@@ -1,5 +1,3 @@
 flask
+duckduckgo_search
 requests
-spotipy
-feedparser
-gunicorn
