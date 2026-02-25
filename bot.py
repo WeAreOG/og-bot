@@ -14,10 +14,11 @@ NICK = "TheOG"
 PASS = "Nasomet112#" 
 CHANNEL = "#TheOG"
 
-# Lista de serviços e bots de sistema a ignorar
-IGNORE_LIST = ["nickserv", "chanserv", "memoserv", "operserv", "statserv", "auth"]
+# Filtro de bots e serviços
+IGNORE_LIST = ["nickserv", "chanserv", "memoserv", "operserv", "statserv", "auth", "secure"]
 
-HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+# Motor DeepSeek-R1 (Hugging Face)
+HF_API_URL = "https://api-inference.huggingface.co/models/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
 HF_TOKEN = "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"
 
 app = Flask(__name__)
@@ -57,6 +58,7 @@ REENTRY_PHRASES = [
 ]
 
 # --- 100 FRASES DE BOAS-VINDAS ---
+# (Podes colar aqui as tuas 100 frases que tínhamos anteriormente)
 WELCOME_BASES = [
     "Bem-vindo ao antro, {user}!", "Olha quem é ele! Entra e serve-te, {user}.", 
     "Boas {user}! Estávamos mesmo a precisar de gente nova.", "Finalmente chegaste, {user}!",
@@ -109,7 +111,7 @@ WELCOME_BASES = [
     "Aí está o {user}, pronto para outra!", "Bem-vindo {user}, diverte-te por cá.",
     "Boas {user}, sê tu próprio!", "O {user} entrou, vamos a isto!",
     "Grande {user}, sempre bem-vindo ao antro.", "Boas {user}, a casa é tua!",
-    "O {user} é o maior! Bem-vindo.", "Saudações {user}, a malta saúda-te.",
+    "O {user} é the best! Bem-vindo.", "Saudações {user}, a malta saúda-te.",
     "Viva {user}, que bom ter-te connosco!", "O {user} chegou para pôr ordem nisto!",
     "Bem-vindo {user}, o canal estava morto sem ti.", "Viva {user}, brilha aí!",
     "O {user} é o nosso herói hoje!", "Saudações {user}, que bom ver-te.",
@@ -131,7 +133,7 @@ POSITIVE_REINFORCEMENT = [
     "Obrigado por manterem o #TheOG vibrante.", "Cada um traz algo único aqui.",
     "Este canal brilha graças a vocês.", "O #TheOG é onde a amizade acontece.",
     "Partilhar este espaço convosco é ótimo.", "Respeito e boa onda: a marca do #TheOG!",
-    "Vocês são a razão do meu código existir.", "O #TheOG não seria o same sem vocês.",
+    "Vocês são a razão do meu código existir.", "O #TheOG não seria o mesmo sem vocês.",
     "Continuem a espalhar magia!", "Este canal é um exemplo de camaradagem.",
     "Aqui ninguém fica de fora.", "A melhor comunidade está aqui!",
     "Obrigado pelas boas conversas.", "Vocês são o motor deste canal!",
@@ -155,7 +157,7 @@ POSITIVE_REINFORCEMENT = [
     "Abraço virtual para todos!", "Onde a conversa nunca morre.",
     "A vossa educação é o nosso orgulho.", "Juntos somos mais fortes aqui!",
     "O #TheOG é o expoente máximo do IRC.", "Obrigado pela vossa autenticidade.",
-    "Que bom é ler as vossas partilhas.", "A malta mais fixe de Portugal está aqui.",
+    "Que bom é ler as vossas parthas.", "A malta mais fixe de Portugal está aqui.",
     "O #TheOG é um oásis na internet.", "Sempre em frente com esta equipa!",
     "Obrigado por não deixarem o chat morrer.", "Vocês são lendas!",
     "Aqui a amizade não tem limites.", "Melhor vibe de sempre!",
@@ -183,6 +185,42 @@ POSITIVE_REINFORCEMENT = [
     "Vocês são a essência do IRC.", "Obrigado por serem tão especiais."
 ]
 
+# --- FUNÇÕES AUXILIARES ---
+
+def get_wiki(subject):
+    try:
+        url = f"https://pt.wikipedia.org/api/rest_v1/page/summary/{subject.replace(' ', '_')}"
+        res = requests.get(url, timeout=5).json()
+        if "extract" not in res: return "Não encontrei nada sobre isso na Wikipedia."
+        return res["extract"][:450] + "..."
+    except: return "Erro técnico ao consultar a Wikipedia."
+
+def get_ai_response(prompt, context="canal"):
+    try:
+        headers = {"Authorization": f"Bearer {HF_TOKEN}", "Content-Type": "application/json"}
+        system_content = "Tu és o TheOG, um bot de IRC tuga, informal e desenrascado."
+        if context == "pvt":
+            system_content += " Estás a falar em privado. Responde de forma curta e diz para irem ao canal."
+            
+        # Formatação específica para o DeepSeek-R1
+        payload = {
+            "inputs": f"<｜begin of sentence｜>{system_content} Utilizador: {prompt}<｜assistant｜>",
+            "parameters": {"max_new_tokens": 100, "temperature": 0.6}
+        }
+        
+        res = requests.post(HF_API_URL, headers=headers, json=payload, timeout=10)
+        if res.status_code == 200:
+            full_text = res.json()[0]['generated_text']
+            # Remover tags de pensamento e instrução
+            answer = full_text.split("<｜assistant｜>")[-1].strip()
+            answer = re.sub(r'<think>.*?</think>', '', answer, flags=re.DOTALL).strip()
+            return answer if answer else "Diz lá outra vez, que me deu um nó no código."
+    except: pass
+    
+    return "Tudo tranquilo por aqui!"
+
+# --- MOTOR DO BOT ---
+
 irc_conn = None
 
 def send_positive_msg():
@@ -195,21 +233,6 @@ def send_positive_msg():
                 irc_conn.send(f"PRIVMSG {CHANNEL} :🌟 {msg}\r\n".encode())
             except: pass
 
-def get_ai_response(prompt, context="conversa"):
-    try:
-        headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-        input_text = f"<s>[INST] Tu és o TheOG. Responde em PT-PT muito curto e informal: {prompt} [/INST]</s>"
-        payload = {"inputs": input_text, "parameters": {"max_new_tokens": 40, "temperature": 0.7}}
-        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=5)
-        if response.status_code == 200:
-            full_text = response.json()[0].get('generated_text', '')
-            clean_res = full_text.split("[/INST]</s>")[-1].strip()
-            if clean_res: return re.sub(r'[\r\n\t]+', ' ', clean_res)
-    except: pass
-    
-    if context == "welcome": return random.choice(WELCOME_BASES).format(user=prompt)
-    return "Tudo tranquilo!"
-
 def run_irc_bot():
     global irc_conn
     while True:
@@ -218,7 +241,7 @@ def run_irc_bot():
             irc_conn.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             irc_conn.connect((SERVER, PORT))
             irc_conn.send(f"NICK {NICK}\r\n".encode())
-            irc_conn.send(f"USER {NICK} 8 * :TheOG Bot\r\n".encode())
+            irc_conn.send(f"USER {NICK} 8 * :TheOG DeepSeek Bot\r\n".encode())
 
             while True:
                 line = irc_conn.recv(4096).decode("utf-8", errors="ignore")
@@ -228,6 +251,7 @@ def run_irc_bot():
                     irc_conn.send(f"PONG {line.split()[1]}\r\n".encode())
                     continue
 
+                # Login e Identificação
                 if "376" in line or "422" in line:
                     irc_conn.send(f"PRIVMSG NickServ :IDENTIFY {PASS}\r\n".encode())
                     time.sleep(2)
@@ -235,38 +259,45 @@ def run_irc_bot():
                     time.sleep(1)
                     irc_conn.send(f"PRIVMSG {CHANNEL} :{random.choice(REENTRY_PHRASES)}\r\n".encode())
 
+                # Entrada de Utilizadores
                 if " JOIN " in line:
-                    user_nick = line.split('!')[0][1:]
-                    if user_nick.lower() not in IGNORE_LIST and user_nick.lower() != NICK.lower():
-                        msg = get_ai_response(user_nick, context="welcome")
+                    u = line.split('!')[0][1:]
+                    if u.lower() not in IGNORE_LIST and u.lower() != NICK.lower():
+                        # Boas-vindas rápida
+                        msg = random.choice(WELCOME_BASES).format(user=u)
                         irc_conn.send(f"PRIVMSG {CHANNEL} :{msg}\r\n".encode())
 
+                # Mensagens
                 if "PRIVMSG" in line:
                     user = line.split('!')[0][1:]
                     if user.lower() in IGNORE_LIST or user.lower() == NICK.lower(): continue
                     
-                    # DETETAR MENSAGENS PRIVADAS (QUERY)
+                    # 1. MENSAGEM PRIVADA (IA em PVT)
                     if f"PRIVMSG {NICK} :" in line:
-                        irc_conn.send(f"PRIVMSG {user} :Olá! Eu sou um bot e ainda não estou programado para responder em privado. Por favor, fala comigo no canal {CHANNEL}!\r\n".encode())
+                        pvt_content = line.split(f"PRIVMSG {NICK} :", 1)[1].strip()
+                        ia_pvt = get_ai_response(pvt_content, context="pvt")
+                        irc_conn.send(f"PRIVMSG {user} :{ia_pvt}\r\n".encode())
                         continue
 
-                    # MENSAGENS NO CANAL
+                    # 2. MENSAGEM NO CANAL
                     msg_match = re.search(f"PRIVMSG {CHANNEL} :(.+)", line)
                     if msg_match:
-                        msg_content = msg_match.group(1).strip()
+                        cmd = msg_match.group(1).strip()
                         
-                        if msg_content.lower() == "!comandos":
-                            irc_conn.send(f"NOTICE {user} :--- Comandos do TheOG ---\r\n".encode())
-                            irc_conn.send(f"NOTICE {user} :!comandos - Mostra esta lista via Notice.\r\n".encode())
-                            irc_conn.send(f"NOTICE {user} :Menciona '{NICK}' para falar com a minha IA.\r\n".encode())
-                            irc_conn.send(f"NOTICE {user} :Usa o canal para conversas, o meu privado é apenas informativo.\r\n".encode())
-                        
-                        elif NICK.lower() in msg_content.lower():
-                            p_clean = re.sub(rf'{NICK}', '', msg_content, flags=re.IGNORECASE).strip()
-                            resp = get_ai_response(p_clean)
+                        if cmd.lower() == "!comandos":
+                            for m in ["!wiki [tema]", "!comandos"]:
+                                irc_conn.send(f"NOTICE {user} :{m}\r\n".encode())
+
+                        elif cmd.lower().startswith("!wiki "):
+                            tema = cmd[6:]
+                            irc_conn.send(f"NOTICE {user} :{get_wiki(tema)}\r\n".encode())
+
+                        elif NICK.lower() in cmd.lower():
+                            p = re.sub(rf'{NICK}', '', cmd, flags=re.IGNORECASE).strip()
+                            resp = get_ai_response(p)
                             irc_conn.send(f"PRIVMSG {CHANNEL} :{user}: {resp}\r\n".encode())
 
-        except Exception as e:
+        except Exception:
             time.sleep(10)
 
 if __name__ == "__main__":
