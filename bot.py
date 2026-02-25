@@ -14,12 +14,15 @@ NICK = "TheOG"
 PASS = "Nasomet112#" 
 CHANNEL = "#TheOG"
 
+# Lista de serviços e bots de sistema a ignorar
+IGNORE_LIST = ["nickserv", "chanserv", "memoserv", "operserv", "statserv", "auth"]
+
 HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
 HF_TOKEN = "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"
 
 app = Flask(__name__)
 
-# --- 30 FRASES DE REENTRADA (BOT ONLINE/CAIU) ---
+# --- 30 FRASES DE REENTRADA ---
 REENTRY_PHRASES = [
     "Voltei! Quem foi o engraçadinho que desligou o cabo?",
     "Ai, as minhas boards... caí com tanta força que até ganhei nódoas negras nos pixéis.",
@@ -108,7 +111,14 @@ WELCOME_BASES = [
     "Grande {user}, sempre bem-vindo ao antro.", "Boas {user}, a casa é tua!",
     "O {user} é o maior! Bem-vindo.", "Saudações {user}, a malta saúda-te.",
     "Viva {user}, que bom ter-te connosco!", "O {user} chegou para pôr ordem nisto!",
-    "Bem-vindo {user}, o canal estava morto sem ti."
+    "Bem-vindo {user}, o canal estava morto sem ti.", "Viva {user}, brilha aí!",
+    "O {user} é o nosso herói hoje!", "Saudações {user}, que bom ver-te.",
+    "Boas {user}, entra e desfruta!", "Aí está o {user}, que maravilha.",
+    "Bem-vindo {user}, o melhor de sempre!", "O {user} entrou, o céu é o limite!",
+    "Viva {user}, estamos contigo!", "Boas {user}, sê muito feliz aqui!",
+    "Grande {user}, que força a tua!", "Bem-vindo {user}, o canal sorri!",
+    "O {user} chegou, tudo a postos!", "Viva {user}, o mestre da palavra!",
+    "Boas {user}, o canal estava à tua espera!", "Saudações {user}, entra em grande!"
 ]
 
 # --- 100 FRASES DE REFORÇO POSITIVO ---
@@ -121,7 +131,7 @@ POSITIVE_REINFORCEMENT = [
     "Obrigado por manterem o #TheOG vibrante.", "Cada um traz algo único aqui.",
     "Este canal brilha graças a vocês.", "O #TheOG é onde a amizade acontece.",
     "Partilhar este espaço convosco é ótimo.", "Respeito e boa onda: a marca do #TheOG!",
-    "Vocês são a razão do meu código existir.", "O #TheOG não seria o mesmo sem vocês.",
+    "Vocês são a razão do meu código existir.", "O #TheOG não seria o same sem vocês.",
     "Continuem a espalhar magia!", "Este canal é um exemplo de camaradagem.",
     "Aqui ninguém fica de fora.", "A melhor comunidade está aqui!",
     "Obrigado pelas boas conversas.", "Vocês são o motor deste canal!",
@@ -164,7 +174,13 @@ POSITIVE_REINFORCEMENT = [
     "O #TheOG é vida!", "Mantenham a chama do IRC acesa!",
     "Vocês são a razão do meu sucesso.", "Obrigado pela vossa amizade constante.",
     "A vossa companhia não tem preço.", "O #TheOG agradece a vossa estadia!",
-    "Mantenham-se fantásticos como são!", "O #TheOG é o vosso legado."
+    "Mantenham-se fantásticos como são!", "O #TheOG é o vosso legado.",
+    "Obrigado pela vossa luz aqui.", "Um viva à nossa união!",
+    "O #TheOG é o topo da rede!", "Obrigado pela vossa alegria infinita.",
+    "Sempre juntos no #TheOG!", "Este é o nosso espaço sagrado.",
+    "Vocês dão sentido ao chat.", "Obrigado pela vossa bondade.",
+    "O #TheOG é onde tudo brilha!", "Sempre em frente, equipa!",
+    "Vocês são a essência do IRC.", "Obrigado por serem tão especiais."
 ]
 
 irc_conn = None
@@ -182,7 +198,7 @@ def send_positive_msg():
 def get_ai_response(prompt, context="conversa"):
     try:
         headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-        input_text = f"<s>[INST] Tu és o TheOG. Responde em PT-PT curto e informal: {prompt} [/INST]</s>"
+        input_text = f"<s>[INST] Tu és o TheOG. Responde em PT-PT muito curto e informal: {prompt} [/INST]</s>"
         payload = {"inputs": input_text, "parameters": {"max_new_tokens": 40, "temperature": 0.7}}
         response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=5)
         if response.status_code == 200:
@@ -198,7 +214,6 @@ def run_irc_bot():
     global irc_conn
     while True:
         try:
-            print(f"[{time.strftime('%H:%M:%S')}] A ligar...")
             irc_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             irc_conn.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             irc_conn.connect((SERVER, PORT))
@@ -217,22 +232,25 @@ def run_irc_bot():
                     irc_conn.send(f"PRIVMSG NickServ :IDENTIFY {PASS}\r\n".encode())
                     time.sleep(2)
                     irc_conn.send(f"JOIN {CHANNEL}\r\n".encode())
-                    
-                    # FRASE DE REENTRADA QUANDO ENTRA NO CANAL
                     time.sleep(1)
-                    reentry_msg = random.choice(REENTRY_PHRASES)
-                    irc_conn.send(f"PRIVMSG {CHANNEL} :{reentry_msg}\r\n".encode())
+                    irc_conn.send(f"PRIVMSG {CHANNEL} :{random.choice(REENTRY_PHRASES)}\r\n".encode())
 
                 if " JOIN " in line:
                     user_nick = line.split('!')[0][1:]
-                    if user_nick.lower() != NICK.lower():
+                    if user_nick.lower() not in IGNORE_LIST and user_nick.lower() != NICK.lower():
                         msg = get_ai_response(user_nick, context="welcome")
                         irc_conn.send(f"PRIVMSG {CHANNEL} :{msg}\r\n".encode())
 
                 if "PRIVMSG" in line:
                     user = line.split('!')[0][1:]
-                    if user.lower() == NICK.lower(): continue
+                    if user.lower() in IGNORE_LIST or user.lower() == NICK.lower(): continue
                     
+                    # DETETAR MENSAGENS PRIVADAS (QUERY)
+                    if f"PRIVMSG {NICK} :" in line:
+                        irc_conn.send(f"PRIVMSG {user} :Olá! Eu sou um bot e ainda não estou programado para responder em privado. Por favor, fala comigo no canal {CHANNEL}!\r\n".encode())
+                        continue
+
+                    # MENSAGENS NO CANAL
                     msg_match = re.search(f"PRIVMSG {CHANNEL} :(.+)", line)
                     if msg_match:
                         msg_content = msg_match.group(1).strip()
@@ -241,7 +259,7 @@ def run_irc_bot():
                             irc_conn.send(f"NOTICE {user} :--- Comandos do TheOG ---\r\n".encode())
                             irc_conn.send(f"NOTICE {user} :!comandos - Mostra esta lista via Notice.\r\n".encode())
                             irc_conn.send(f"NOTICE {user} :Menciona '{NICK}' para falar com a minha IA.\r\n".encode())
-                            irc_conn.send(f"NOTICE {user} :Dou boas-vindas automáticas e reforço positivo a cada 30min.\r\n".encode())
+                            irc_conn.send(f"NOTICE {user} :Usa o canal para conversas, o meu privado é apenas informativo.\r\n".encode())
                         
                         elif NICK.lower() in msg_content.lower():
                             p_clean = re.sub(rf'{NICK}', '', msg_content, flags=re.IGNORECASE).strip()
@@ -249,11 +267,9 @@ def run_irc_bot():
                             irc_conn.send(f"PRIVMSG {CHANNEL} :{user}: {resp}\r\n".encode())
 
         except Exception as e:
-            print(f"Erro: {e}. Reconectar em 10s...")
             time.sleep(10)
 
 if __name__ == "__main__":
     threading.Thread(target=run_irc_bot, daemon=True).start()
     threading.Thread(target=send_positive_msg, daemon=True).start()
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
