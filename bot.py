@@ -14,13 +14,12 @@ NICK = "TheOG"
 PASS = "Nasomet112#" 
 CHANNEL = "#TheOG"
 
-# Usamos um modelo da Hugging Face que é gratuito e estável
-HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
-HF_TOKEN = "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" # O teu token
+HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+HF_TOKEN = "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"
 
 app = Flask(__name__)
 
-# --- 60 FRASES DE BOAS-VINDAS (Fallback Garantido) ---
+# --- 60 FRASES DE BOAS-VINDAS ---
 WELCOME_BASES = [
     "Bem-vindo ao antro, {user}!", "Olha quem é ele! Entra e serve-te, {user}.", 
     "Boas {user}! Estávamos mesmo a precisar de gente nova.", "Finalmente chegaste, {user}!",
@@ -54,96 +53,129 @@ WELCOME_BASES = [
     "Quem é vivo sempre aparece! Boas {user}.", "És tu {user}? Estás diferente!"
 ]
 
-@app.route('/')
-def health_check():
-    return "TheOG Online", 200
+# --- 60 FRASES DE REFORÇO POSITIVO (A cada 40 min) ---
+POSITIVE_REINFORCEMENT = [
+    "Este canal é o melhor spot da PTNet, sem dúvida!", "É um orgulho ter malta tão porreira aqui no #TheOG.",
+    "A energia deste canal é outra coisa. Continuem assim!", "Um brinde a todos os que fazem do #TheOG a sua casa.",
+    "Sinto que o #TheOG é mais que um canal, é uma família.", "Obrigado por estarem por aqui, vocês são top!",
+    "Não há canal com melhor conversa que este.", "A malta do #TheOG é a elite do IRC!",
+    "É bom ver que o espírito do IRC continua vivo aqui.", "Mantenham o ambiente positivo, vocês são incríveis!",
+    "Obrigado a todos os que mantêm o #TheOG ativo e vibrante.", "Cada um de vocês traz algo único ao canal. Obrigado!",
+    "Este canal brilha graças a quem o frequenta.", "O #TheOG é o sítio onde a amizade acontece.",
+    "Que bom é partilhar este espaço com pessoas como vocês.", "Respeito e boa onda: a marca do #TheOG!",
+    "Vocês são a razão deste bot existir. Grande abraço à malta!", "O #TheOG não seria o mesmo sem a vossa presença.",
+    "Continuem a espalhar magia por aqui!", "Este canal é um exemplo de camaradagem.",
+    "Aqui no #TheOG ninguém fica de fora.", "A melhor comunidade está aqui!",
+    "Obrigado pelas conversas e pelos bons momentos.", "Vocês são o motor deste canal!",
+    "Mantenham essa vibe positiva!", "O #TheOG é o nosso refúgio digital.",
+    "Não há tédio quando vocês estão por aqui.", "Orgulho nesta malta!",
+    "O #TheOG é sinónimo de qualidade.", "É um privilégio ser o vosso bot.",
+    "Espalhem sorrisos, o canal agradece!", "A vossa companhia é o melhor deste dia.",
+    "O #TheOG é o lugar onde todos têm voz.", "Obrigado pela vossa lealdade ao canal.",
+    "Vocês fazem do IRC um lugar melhor.", "Energia positiva atrai coisas boas!",
+    "O #TheOG é a prova de que o IRC ainda recomenda-se.", "Um viva a todos os frequentadores habituais!",
+    "Obrigado por fazerem parte desta história.", "O ambiente aqui é simplesmente fenomenal.",
+    "Dêem valor aos amigos que fazem aqui no canal.", "O #TheOG é o ponto de encontro perfeito.",
+    "Vocês são brutais, nunca mudem!", "Partilhar o canal convosco é uma honra.",
+    "O #TheOG é o coração da rede!", "Obrigado pela paciência e pela alegria.",
+    "Fazer parte desta comunidade é especial.", "Vocês tornam o meu código mais feliz!",
+    "A vossa presença é o que dá vida ao #TheOG.", "O canal está em boas mãos convosco.",
+    "Respeitem-se e divirtam-se, esse é o lema!", "O #TheOG é feito de gente boa.",
+    "Obrigado por tornarem este canal tão acolhedor.", "A elite da conversa está aqui reunida.",
+    "Mantenham o foco no que é bom!", "O #TheOG é a nossa segunda casa.",
+    "Vocês são a alma deste projeto.", "Obrigado por darem cor ao #TheOG.",
+    "Um abraço virtual para todos os presentes!", "O #TheOG é onde a conversa nunca morre."
+]
 
-# --- FUNÇÃO DE IA (Hugging Face com Fallback) ---
+irc_conn = None # Variável global para o socket
+
+def send_positive_msg():
+    global irc_conn
+    while True:
+        time.sleep(2400) # 40 minutos (40 * 60 segundos)
+        if irc_conn:
+            try:
+                msg = random.choice(POSITIVE_REINFORCEMENT)
+                irc_conn.send(f"PRIVMSG {CHANNEL} :🌟 {msg}\r\n".encode())
+                print(f"[{time.strftime('%H:%M:%S')}] Reforço positivo enviado.")
+            except:
+                pass
 
 def get_ai_response(prompt, context="conversa"):
     try:
         headers = {"Authorization": f"Bearer {HF_TOKEN}"}
         if context == "welcome":
-            input_text = f"<s>[INST] Tu és o TheOG. Dá as boas-vindas curtas e engraçadas em Português de Portugal ao utilizador: {prompt} [/INST]</s>"
+            input_text = f"<s>[INST] Dá as boas-vindas a {prompt} em Português de Portugal. Curto e informal. [/INST]</s>"
         else:
-            input_text = f"<s>[INST] Responde muito curto em PT-PT como o TheOG: {prompt} [/INST]</s>"
+            input_text = f"<s>[INST] Responde em Português de Portugal, muito curto: {prompt} [/INST]</s>"
         
-        payload = {"inputs": input_text, "parameters": {"max_new_tokens": 50, "temperature": 0.8}}
-        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=7)
+        payload = {"inputs": input_text, "parameters": {"max_new_tokens": 40, "temperature": 0.7}}
+        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=5)
         
         if response.status_code == 200:
-            res_json = response.json()
-            # Extrair apenas a resposta da IA, removendo o prompt original
-            full_text = res_json[0].get('generated_text', '')
+            full_text = response.json()[0].get('generated_text', '')
             clean_res = full_text.split("[/INST]</s>")[-1].strip()
-            return re.sub(r'[\r\n\t]+', ' ', clean_res)
-    except Exception as e:
-        print(f"Erro IA: {e}")
+            if clean_res:
+                return re.sub(r'[\r\n\t]+', ' ', clean_res)
+    except:
+        pass
     
-    # Se a IA falhar, usamos a lista de 60 frases (O SEGURO)
     if context == "welcome":
         return random.choice(WELCOME_BASES).format(user=prompt)
-    return "Estou sem bateria nos neurónios, pergunta outra vez!"
-
-# --- CORE DO BOT ---
+    return "Tudo tranquilo por aqui!"
 
 def run_irc_bot():
+    global irc_conn
     while True:
         try:
-            print(f"[{time.strftime('%H:%M:%S')}] A ligar a {SERVER}...")
-            irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            irc.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-            irc.settimeout(300)
-            irc.connect((SERVER, PORT))
+            print(f"[{time.strftime('%H:%M:%S')}] A ligar...")
+            irc_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            irc_conn.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            irc_conn.connect((SERVER, PORT))
             
-            irc.send(f"NICK {NICK}\r\n".encode())
-            irc.send(f"USER {NICK} 8 * :TheOG Bot\r\n".encode())
+            irc_conn.send(f"NICK {NICK}\r\n".encode())
+            irc_conn.send(f"USER {NICK} 8 * :TheOG Bot\r\n".encode())
 
             while True:
-                try:
-                    line = irc.recv(4096).decode("utf-8", errors="ignore")
-                except: break # Se der erro na receção, sai do loop e reconecta
-                
+                line = irc_conn.recv(4096).decode("utf-8", errors="ignore")
                 if not line: break
 
                 if line.startswith("PING"):
-                    irc.send(f"PONG {line.split()[1]}\r\n".encode())
+                    irc_conn.send(f"PONG {line.split()[1]}\r\n".encode())
                     continue
 
-                # Quando o servidor envia o MOTD (fim do login)
                 if "376" in line or "422" in line:
-                    irc.send(f"PRIVMSG NickServ :IDENTIFY {PASS}\r\n".encode())
+                    irc_conn.send(f"PRIVMSG NickServ :IDENTIFY {PASS}\r\n".encode())
                     time.sleep(2)
-                    irc.send(f"JOIN {CHANNEL}\r\n".encode())
-                    print("No canal!")
+                    irc_conn.send(f"JOIN {CHANNEL}\r\n".encode())
 
-                # --- DETETAR ENTRADA (JOIN) ---
                 if " JOIN " in line:
                     user_nick = line.split('!')[0][1:]
                     if user_nick.lower() != NICK.lower():
-                        welcome_msg = get_ai_response(user_nick, context="welcome")
-                        irc.send(f"PRIVMSG {CHANNEL} :{welcome_msg}\r\n".encode())
+                        msg = get_ai_response(user_nick, context="welcome")
+                        irc_conn.send(f"PRIVMSG {CHANNEL} :{msg}\r\n".encode())
 
-                # --- MENSAGENS NO CANAL ---
                 if "PRIVMSG" in line:
                     user = line.split('!')[0][1:]
                     if user.lower() == NICK.lower(): continue
                     
-                    if f"PRIVMSG {CHANNEL} :" in line:
-                        msg_content = line.split(f"PRIVMSG {CHANNEL} :", 1)[1].strip()
-                        
+                    msg_match = re.search(f"PRIVMSG {CHANNEL} :(.+)", line)
+                    if msg_match:
+                        msg_content = msg_match.group(1).strip()
                         if NICK.lower() in msg_content.lower():
                             p_clean = re.sub(rf'{NICK}', '', msg_content, flags=re.IGNORECASE).strip()
                             resp = get_ai_response(p_clean)
-                            irc.send(f"PRIVMSG {CHANNEL} :{user}: {resp}\r\n".encode())
+                            irc_conn.send(f"PRIVMSG {CHANNEL} :{user}: {resp}\r\n".encode())
 
         except Exception as e:
-            print(f"Erro Geral: {e}. Reconectar em 10s...")
+            print(f"Erro: {e}. Reconectar em 10s...")
             time.sleep(10)
 
 if __name__ == "__main__":
-    # Inicia o bot
+    # Thread para o Bot IRC
     threading.Thread(target=run_irc_bot, daemon=True).start()
-    # Inicia o servidor Web (Flask)
+    # Thread para as Mensagens de Reforço (40 min)
+    threading.Thread(target=send_positive_msg, daemon=True).start()
+    
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
