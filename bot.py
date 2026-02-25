@@ -14,8 +14,8 @@ NICK = "TheOG"
 PASS = "Nasomet112#" 
 CHANNEL = "#TheOG"
 
-# Filtro de bots e serviços
-IGNORE_LIST = ["nickserv", "chanserv", "memoserv", "operserv", "statserv", "auth", "secure"]
+# LISTA VAZIA - O bot agora processa tudo
+IGNORE_LIST = []
 
 # Motor DeepSeek-R1 (Hugging Face)
 HF_API_URL = "https://api-inference.huggingface.co/models/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
@@ -58,7 +58,6 @@ REENTRY_PHRASES = [
 ]
 
 # --- 100 FRASES DE BOAS-VINDAS ---
-# (Podes colar aqui as tuas 100 frases que tínhamos anteriormente)
 WELCOME_BASES = [
     "Bem-vindo ao antro, {user}!", "Olha quem é ele! Entra e serve-te, {user}.", 
     "Boas {user}! Estávamos mesmo a precisar de gente nova.", "Finalmente chegaste, {user}!",
@@ -157,7 +156,7 @@ POSITIVE_REINFORCEMENT = [
     "Abraço virtual para todos!", "Onde a conversa nunca morre.",
     "A vossa educação é o nosso orgulho.", "Juntos somos mais fortes aqui!",
     "O #TheOG é o expoente máximo do IRC.", "Obrigado pela vossa autenticidade.",
-    "Que bom é ler as vossas parthas.", "A malta mais fixe de Portugal está aqui.",
+    "Que bom é ler as vossas partilhas.", "A malta mais fixe de Portugal está aqui.",
     "O #TheOG é um oásis na internet.", "Sempre em frente com esta equipa!",
     "Obrigado por não deixarem o chat morrer.", "Vocês são lendas!",
     "Aqui a amizade não tem limites.", "Melhor vibe de sempre!",
@@ -185,7 +184,7 @@ POSITIVE_REINFORCEMENT = [
     "Vocês são a essência do IRC.", "Obrigado por serem tão especiais."
 ]
 
-# --- FUNÇÕES AUXILIARES ---
+# --- FUNÇÕES ---
 
 def get_wiki(subject):
     try:
@@ -202,7 +201,6 @@ def get_ai_response(prompt, context="canal"):
         if context == "pvt":
             system_content += " Estás a falar em privado. Responde de forma curta e diz para irem ao canal."
             
-        # Formatação específica para o DeepSeek-R1
         payload = {
             "inputs": f"<｜begin of sentence｜>{system_content} Utilizador: {prompt}<｜assistant｜>",
             "parameters": {"max_new_tokens": 100, "temperature": 0.6}
@@ -211,26 +209,21 @@ def get_ai_response(prompt, context="canal"):
         res = requests.post(HF_API_URL, headers=headers, json=payload, timeout=10)
         if res.status_code == 200:
             full_text = res.json()[0]['generated_text']
-            # Remover tags de pensamento e instrução
             answer = full_text.split("<｜assistant｜>")[-1].strip()
             answer = re.sub(r'<think>.*?</think>', '', answer, flags=re.DOTALL).strip()
             return answer if answer else "Diz lá outra vez, que me deu um nó no código."
     except: pass
-    
-    return "Tudo tranquilo por aqui!"
-
-# --- MOTOR DO BOT ---
+    return "Tudo tranquilo!"
 
 irc_conn = None
 
-def send_positive_msg():
+def keep_in_channel():
     global irc_conn
     while True:
-        time.sleep(1800) # 30 minutos
+        time.sleep(45) 
         if irc_conn:
             try:
-                msg = random.choice(POSITIVE_REINFORCEMENT)
-                irc_conn.send(f"PRIVMSG {CHANNEL} :🌟 {msg}\r\n".encode())
+                irc_conn.send(f"JOIN {CHANNEL}\r\n".encode())
             except: pass
 
 def run_irc_bot():
@@ -240,6 +233,7 @@ def run_irc_bot():
             irc_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             irc_conn.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             irc_conn.connect((SERVER, PORT))
+            
             irc_conn.send(f"NICK {NICK}\r\n".encode())
             irc_conn.send(f"USER {NICK} 8 * :TheOG DeepSeek Bot\r\n".encode())
 
@@ -251,35 +245,31 @@ def run_irc_bot():
                     irc_conn.send(f"PONG {line.split()[1]}\r\n".encode())
                     continue
 
-                # Login e Identificação
                 if "376" in line or "422" in line:
                     irc_conn.send(f"PRIVMSG NickServ :IDENTIFY {PASS}\r\n".encode())
-                    time.sleep(2)
+                    time.sleep(6) # Delay para garantir o Auth
                     irc_conn.send(f"JOIN {CHANNEL}\r\n".encode())
                     time.sleep(1)
                     irc_conn.send(f"PRIVMSG {CHANNEL} :{random.choice(REENTRY_PHRASES)}\r\n".encode())
 
-                # Entrada de Utilizadores
                 if " JOIN " in line:
                     u = line.split('!')[0][1:]
-                    if u.lower() not in IGNORE_LIST and u.lower() != NICK.lower():
-                        # Boas-vindas rápida
+                    if u.lower() != NICK.lower():
                         msg = random.choice(WELCOME_BASES).format(user=u)
                         irc_conn.send(f"PRIVMSG {CHANNEL} :{msg}\r\n".encode())
 
-                # Mensagens
                 if "PRIVMSG" in line:
                     user = line.split('!')[0][1:]
-                    if user.lower() in IGNORE_LIST or user.lower() == NICK.lower(): continue
+                    if user.lower() == NICK.lower(): continue
                     
-                    # 1. MENSAGEM PRIVADA (IA em PVT)
+                    # PVT
                     if f"PRIVMSG {NICK} :" in line:
                         pvt_content = line.split(f"PRIVMSG {NICK} :", 1)[1].strip()
                         ia_pvt = get_ai_response(pvt_content, context="pvt")
                         irc_conn.send(f"PRIVMSG {user} :{ia_pvt}\r\n".encode())
                         continue
 
-                    # 2. MENSAGEM NO CANAL
+                    # Canal
                     msg_match = re.search(f"PRIVMSG {CHANNEL} :(.+)", line)
                     if msg_match:
                         cmd = msg_match.group(1).strip()
@@ -302,5 +292,15 @@ def run_irc_bot():
 
 if __name__ == "__main__":
     threading.Thread(target=run_irc_bot, daemon=True).start()
-    threading.Thread(target=send_positive_msg, daemon=True).start()
+    threading.Thread(target=keep_in_channel, daemon=True).start()
+    # Reforço positivo
+    def reinforcement_loop():
+        global irc_conn
+        while True:
+            time.sleep(1800)
+            if irc_conn:
+                try: irc_conn.send(f"PRIVMSG {CHANNEL} :🌟 {random.choice(POSITIVE_REINFORCEMENT)}\r\n".encode())
+                except: pass
+    threading.Thread(target=reinforcement_loop, daemon=True).start()
+    
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
