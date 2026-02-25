@@ -14,11 +14,10 @@ NICK = "TheOG"
 PASS = "Nasomet112#" 
 CHANNEL = "#TheOG"
 
-# LISTA VAZIA - O bot agora processa tudo
-IGNORE_LIST = []
+# Nicks que o bot deve ignorar completamente (não cumprimentar)
+BOT_FILTER = ["nickserv", "chanserv", "memoserv", "operserv", "adamastor", "statserv"]
 
-# Motor DeepSeek-R1 (Hugging Face)
-HF_API_URL = "https://api-inference.huggingface.co/models/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+HF_API_URL = "https://api-inference.huggingface.co/models/deepseek-ai/DeepSeek-V3"
 HF_TOKEN = "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"
 
 app = Flask(__name__)
@@ -192,115 +191,94 @@ def get_wiki(subject):
         res = requests.get(url, timeout=5).json()
         if "extract" not in res: return "Não encontrei nada sobre isso na Wikipedia."
         return res["extract"][:450] + "..."
-    except: return "Erro técnico ao consultar a Wikipedia."
+    except: return "Erro ao consultar a Wikipedia."
 
 def get_ai_response(prompt, context="canal"):
     try:
         headers = {"Authorization": f"Bearer {HF_TOKEN}", "Content-Type": "application/json"}
-        system_content = "Tu és o TheOG, um bot de IRC tuga, informal e desenrascado."
-        if context == "pvt":
-            system_content += " Estás a falar em privado. Responde de forma curta e diz para irem ao canal."
-            
+        system_p = "Tu és o TheOG, bot de IRC tuga, informal. Responde curto em PT-PT."
         payload = {
-            "inputs": f"<｜begin of sentence｜>{system_content} Utilizador: {prompt}<｜assistant｜>",
-            "parameters": {"max_new_tokens": 100, "temperature": 0.6}
+            "inputs": f"{system_p} Utilizador: {prompt}\nTheOG:",
+            "parameters": {"max_new_tokens": 60, "temperature": 0.6}
         }
-        
         res = requests.post(HF_API_URL, headers=headers, json=payload, timeout=10)
         if res.status_code == 200:
-            full_text = res.json()[0]['generated_text']
-            answer = full_text.split("<｜assistant｜>")[-1].strip()
-            answer = re.sub(r'<think>.*?</think>', '', answer, flags=re.DOTALL).strip()
-            return answer if answer else "Diz lá outra vez, que me deu um nó no código."
+            text = res.json()[0]['generated_text']
+            return text.split("TheOG:")[-1].strip()
     except: pass
     return "Tudo tranquilo!"
 
+# --- MOTOR IRC ---
 irc_conn = None
-
-def keep_in_channel():
-    global irc_conn
-    while True:
-        time.sleep(45) 
-        if irc_conn:
-            try:
-                irc_conn.send(f"JOIN {CHANNEL}\r\n".encode())
-            except: pass
 
 def run_irc_bot():
     global irc_conn
     while True:
         try:
             irc_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            irc_conn.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             irc_conn.connect((SERVER, PORT))
-            
             irc_conn.send(f"NICK {NICK}\r\n".encode())
-            irc_conn.send(f"USER {NICK} 8 * :TheOG DeepSeek Bot\r\n".encode())
+            irc_conn.send(f"USER {NICK} 8 * :TheOG Bot\r\n".encode())
 
             while True:
                 line = irc_conn.recv(4096).decode("utf-8", errors="ignore")
                 if not line: break
-                
                 if line.startswith("PING"):
                     irc_conn.send(f"PONG {line.split()[1]}\r\n".encode())
                     continue
 
                 if "376" in line or "422" in line:
                     irc_conn.send(f"PRIVMSG NickServ :IDENTIFY {PASS}\r\n".encode())
-                    time.sleep(6) # Delay para garantir o Auth
+                    time.sleep(6)
                     irc_conn.send(f"JOIN {CHANNEL}\r\n".encode())
                     time.sleep(1)
                     irc_conn.send(f"PRIVMSG {CHANNEL} :{random.choice(REENTRY_PHRASES)}\r\n".encode())
 
+                # --- Lógica de JOIN com Filtro ---
                 if " JOIN " in line:
                     u = line.split('!')[0][1:]
-                    if u.lower() != NICK.lower():
+                    # IGNORA bots e o próprio nick
+                    if u.lower() not in BOT_FILTER and u.lower() != NICK.lower():
                         msg = random.choice(WELCOME_BASES).format(user=u)
                         irc_conn.send(f"PRIVMSG {CHANNEL} :{msg}\r\n".encode())
 
                 if "PRIVMSG" in line:
-                    user = line.split('!')[0][1:]
-                    if user.lower() == NICK.lower(): continue
-                    
-                    # PVT
+                    user_nick = line.split('!')[0][1:]
+                    if user_nick.lower() == NICK.lower(): continue
+
+                    # QUERY (PRIVADO)
                     if f"PRIVMSG {NICK} :" in line:
-                        pvt_content = line.split(f"PRIVMSG {NICK} :", 1)[1].strip()
-                        ia_pvt = get_ai_response(pvt_content, context="pvt")
-                        irc_conn.send(f"PRIVMSG {user} :{ia_pvt}\r\n".encode())
+                        pvt_c = line.split(f"PRIVMSG {NICK} :", 1)[1].strip()
+                        # Se não for o NickServ a mandar instruções, responde com IA
+                        if user_nick.lower() not in ["nickserv", "chanserv"]:
+                            resp = get_ai_response(pvt_c, context="pvt")
+                            irc_conn.send(f"PRIVMSG {user_nick} :{resp} (Fala no canal!)\r\n".encode())
                         continue
 
-                    # Canal
+                    # CANAL
                     msg_match = re.search(f"PRIVMSG {CHANNEL} :(.+)", line)
                     if msg_match:
                         cmd = msg_match.group(1).strip()
-                        
                         if cmd.lower() == "!comandos":
-                            for m in ["!wiki [tema]", "!comandos"]:
-                                irc_conn.send(f"NOTICE {user} :{m}\r\n".encode())
-
+                            irc_conn.send(f"NOTICE {user_nick} :Comandos: !wiki [tema], !comandos.\r\n".encode())
                         elif cmd.lower().startswith("!wiki "):
-                            tema = cmd[6:]
-                            irc_conn.send(f"NOTICE {user} :{get_wiki(tema)}\r\n".encode())
-
+                            irc_conn.send(f"NOTICE {user_nick} :Wikipedia: {get_wiki(cmd[6:])}\r\n".encode())
                         elif NICK.lower() in cmd.lower():
                             p = re.sub(rf'{NICK}', '', cmd, flags=re.IGNORECASE).strip()
-                            resp = get_ai_response(p)
-                            irc_conn.send(f"PRIVMSG {CHANNEL} :{user}: {resp}\r\n".encode())
+                            irc_conn.send(f"PRIVMSG {CHANNEL} :{user_nick}: {get_ai_response(p)}\r\n".encode())
 
-        except Exception:
-            time.sleep(10)
+        except Exception: time.sleep(10)
 
 if __name__ == "__main__":
     threading.Thread(target=run_irc_bot, daemon=True).start()
-    threading.Thread(target=keep_in_channel, daemon=True).start()
-    # Reforço positivo
-    def reinforcement_loop():
-        global irc_conn
+    
+    # Loop de Reforço Positivo
+    def pos_loop():
         while True:
             time.sleep(1800)
             if irc_conn:
                 try: irc_conn.send(f"PRIVMSG {CHANNEL} :🌟 {random.choice(POSITIVE_REINFORCEMENT)}\r\n".encode())
                 except: pass
-    threading.Thread(target=reinforcement_loop, daemon=True).start()
-    
+    threading.Thread(target=pos_loop, daemon=True).start()
+
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
