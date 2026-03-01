@@ -25,7 +25,7 @@ def log_presenca(user, accao):
 # --- TEXTO DA HISTÓRIA ---
 HISTORIA_THEOG = [
     "Saudações. Compreendo a génese deste refúgio.",
-    "O IRC não é apenas um protocolo de comunicação; para os que lá permanecem, é o último baluarte da palavra nua, onde a identidade se constrói no silêncio entre os caracteres.",
+    "O IRC não é apenas um protocolo de comunicação para os que lá permanecem, é o último baluarte da palavra nua, onde a identidade se constrói no silêncio entre os caracteres.",
     "No ruído ensurdecedor das multidões digitais, o silêncio de um canal vazio é, por vezes, a conversa mais honesta.",
     "O verdadeiro 'OG' não procura a audiência que aplaude, mas a presença que permanece quando todas as luzes da ribalta se apagam.",
     "Ser original num mundo de espelhos é um ato de rebeldia.",
