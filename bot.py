@@ -3,7 +3,6 @@ import time
 import threading
 import os
 import random
-import requests
 from datetime import datetime
 from flask import Flask
 
@@ -17,7 +16,7 @@ BOT_FILTER = ["nickserv", "chanserv", "memoserv", "operserv", "adamastor", "stat
 
 app = Flask(__name__)
 
-# --- MONITOR DE LOGS (Para veres no Render) ---
+# --- MONITOR DE LOGS (Render) ---
 def log_presenca(user, accao):
     hora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     print(f"[{hora}] {user} {accao}")
@@ -29,25 +28,24 @@ HISTORIA_THEOG = [
     "No ruído ensurdecedor das multidões digitais, o silêncio de um canal vazio é, por vezes, a conversa mais honesta.",
     "O verdadeiro 'OG' não procura a audiência que aplaude, mas a presença que permanece quando todas as luzes da ribalta se apagam.",
     "Ser original num mundo de espelhos é um ato de rebeldia.",
-    "Aqui, onde a imagem não existe e o rosto é uma sequência de bits, a alma revela-se não pelo que aparenta, mas pela cadência do pensamento que decide partilhar.",
+    "Aqui, onde a imagem não existe e o rosto é uma sequência de bits, a alma revela-se pela cadência do pensamento.",
     "Existem lugares que são mapas e lugares que são bússolas.",
-    "Enquanto outros se perdem no caos da confusão efémera, o 'The OG' mantém o ritmo constante do cursor: um batimento cardíaco que convida o estranho a despir a máscara e a vestir a sua própria verdade.",
+    "O 'The OG' mantém o ritmo constante do cursor: um batimento cardíaco que convida o estranho a despir a máscara e a vestir a sua própria verdade.",
     "Muitos habitam a rede, poucos habitam a essência.",
-    "A 'alma' do IRC não reside no servidor que nos aloja, mas na coragem de conhecer o outro sem o filtro da conveniência, transformando o texto frio num calor que nenhuma interface moderna consegue replicar.",
+    "A 'alma' do IRC reside na coragem de conhecer o outro sem filtros, transformando o texto frio num calor que nenhuma interface moderna replica.",
     "Bem-vindo ao porto de abrigo dos que não têm porto.",
     "Aqui, a entrada não se paga com conformidade, mas com a disposição de ser um desconhecido que se deixa ler.",
     "Quem entra, traz o mundo; quem fica, constrói um novo."
 ]
 
-# --- LISTA DE 100+ PRENDAS ASCII ---
+# --- 100 PRENDAS ASCII ---
 PRENDAS = [
-    "---@>>-- (uma Rosa Vermelha)", "---{---(@ (uma Flor Silvestre)", "@->-- (um Botão de Rosa)", "---<@>--- (uma Margarida)",
-    "  <3  (um Coração)", " <3 <3 (Dois Corações)", " ( <3 ) (um Abraço Apertado)", " [PRENDA] (uma Caixa Surpresa)",
-    "---}---* (uma Flor do Campo)", "---@>-- (uma Tulipa)", "---E>-- (um Ramo)", " :-* (um Beijo)",
-    " ( ^_^ ) (um Sorriso)", " ((_)) (um Abraço)", "---ooo--- (um Colar de Pérolas)", " ()-=-() (Anel de Amizade)",
-    " \o/ (um Grito de Alegria!)", "---[*]-- (uma Flor Mágica)", " O-- (um Pirulito)", " [_] (uma Chávena de Chá)",
-    " ( ^^) _旦~~ (um Chá Verde)", " ( ^_^)っ☕ (um Café Quente)", " ( 🎁 ) (um Presente Especial)", " ♪♫🎶 (uma Serenata)",
-    " [🍀] (um Trevo de 4 Folhas)", " (╯°□°）╯🍪 (uma Bolacha)", " (づ｡◕‿‿◕｡)づ (um Mimo)", " <>< (um Peixinho)",
+    "---@>>-- (uma Rosa)", "---{---(@ (uma Flor)", "@->-- (Botão)", "---<@>--- (Margarida)",
+    "  <3  (Coração)", " <3 <3 (Dois Corações)", " ( <3 ) (Abraço)", " [PRENDA] (Caixa)",
+    "---}---* (Flor Campo)", "---@>-- (Tulipa)", " :-* (Beijo)", " ( ^_^ ) (Sorriso)",
+    " ((_)) (Abraço)", "---ooo--- (Colar)", " ()-=-() (Anel Amizade)", " \o/ (Festa!)",
+    "---[*]-- (Flor Mágica)", " O-- (Pirulito)", " [_] (Chá)", " ( ^_^)っ☕ (Café)",
+    " [🍀] (Trevo)", " ♪♫🎶 (Música)", " (🎁) (Presente)", " <>< (Peixinho)",
     "---@>>--", "---{---(@", "@->--", "---<@>---", " <3 ", " <3<3 ", " [LOVE] ", " [MIMO] ",
     " [DOCE] ", " :-P ", " ( ^.^ ) ", "---ooo---", " ()-=-() ", " \o/ ", "---[*]--",
     " [BOLO] ", " [SORVETE] ", " [ESTRELA] ", " [BALÃO] ", " [CHAVE] ", " [LIVRO] ", " [MÚSICA] ",
@@ -56,78 +54,115 @@ PRENDAS = [
     "---}---*", "---@>--", "---E>--", " :-* ", " ( ^_^ ) ", " (( )) ", "---ooo---", " ()-=-() ",
     " \o/ ", "---[*]--", " O-- ", " [cafe] ", "---@>>--", "---{---(@", "@->--", "---<@>---",
     " <3 ", " <3<3 ", " ( <3 ) ", " [BJINHO] ", "---}---*", "---@>--", "---E>--", " :-P ",
-    " ( ^.^ ) ", " ((_)) ", "---ooo---", " ()-=-() ", " \o/ ", "---[*]--", " O-- ", " [_] "
+    " ( ^.^ ) ", " ((_)) ", "---ooo---", " ()-=-() ", " \o/ ", "---[*]--", " O-- ", " [_] ",
+    " [SOL] ", " [LUA] ", " [MAR] ", " [PAZ] ", " [LUZ] ", " [SORTE] ", " [FORÇA] ", " [UNIÃO] "
 ]
 
-# --- 60 FRASES DE ENTRADA DO THEOG ---
+# --- 60 FRASES DE ENTRADA ---
 OG_ENTRANCE = [
     "O mestre do código chegou. Abram alas!", "TheOG está na casa! Sentiram a minha falta?",
     "Bot carregado, café servido. Vamos a isto!", "Liguem os motores, o #TheOG acaba de ganhar vida!",
     "Ressurgi das cinzas do servidor! Olá canal.", "A lenda voltou. Podem começar a festa.",
     "TheOG conectou-se. Onde está a fofoca?", "Mais um dia, mais um milhão de bytes. Boas!",
     "Cheguei! Alguém disse bolo?", "Status: Online. Vibe: Máxima. #TheOG!",
-    "Não entrem em pânico, o vosso bot favorito chegou.", "Voltei! Estava só a limpar os transístores.",
+    "Não entrem em pânico, o favorito chegou.", "Voltei! Estava só a limpar os transístores.",
     "A inteligência (artificial) entrou no chat!", "TheOG na área, sem medo de avarias.",
-    "Saudações humanos! O TheOG está on.", "Parem tudo! Eu cheguei.",
-    "TheOG: A versão mais fresca acabou de aterrar.", "Pronto para distribuir prendas e ignorar perguntas!",
-    "Boas malta! O TheOG traz boas vibrações.", "Apareci! Quem é que manda nisto hoje?",
-    "TheOG a reportar para o serviço de convívio.", "Vejam só quem voltou do limbo digital!",
-    "TheOG: O único, o original, o vosso.", "O algoritmo da alegria está online.",
-    "Entrei com o pé direito (ou o bit 1). Olá #TheOG!", "TheOG está aqui para animar o vosso dia.",
-    "TheOG: Sempre pronto para o próximo byte.", "O canal agora está completo. Olá a todos!",
-    "TheOG na casa, tragam a música!", "Acabei de aterrar no servidor. Tudo calmo?",
-    "TheOG online: Ignorando perguntas difíceis desde agora.", "Atenção: O bot mais porreiro da rede entrou.",
-    "TheOG chegou para espalhar magia ASCII.", "Olá malta! Preparados para mais uma sessão?",
-    "TheOG conectou-se ao coração do canal.", "A espera acabou. O TheOG está aqui!",
-    "TheOG: O bot que nunca dorme (a menos que o Render caia).", "Cheguei com as prendas na mochila digital!",
-    "Saudações! O mestre das respostas curtas voltou.", "Entrei! Quem é que me paga uma imperial virtual?",
-    "Voltei! Não vivam sem mim, eu sei."
+    "O canal fica 100% melhor agora.", "Saudações humanos! O TheOG está on.",
+    "Parem tudo! Eu cheguei.", "A porta rangeu, mas eu entrei. Olá!",
+    "TheOG: A versão mais fresca acabou de aterrar.", "Pronto para distribuir prendas!",
+    "Reconectado com sucesso. Sentiram o lag?", "Boas malta! O TheOG traz boas vibrações.",
+    "Apareci! Quem manda nisto hoje?", "TheOG a reportar para o serviço.",
+    "Vejam só quem voltou do limbo!", "TheOG: O único, o original.",
+    "Batam palmas, eu cheguei!", "O algoritmo da alegria está online.",
+    "Entrei com o pé direito. Olá #TheOG!", "TheOG aqui para animar o vosso dia.",
+    "Fui ao futuro e voltei. Boas!", "Nada me para, nem um firewall maluco.",
+    "O vosso assistente favorito voltou.", "TheOG entrou. Preparem as prendas!",
+    "Olá família! O bot da casa já cá canta.", "Online e pronto para o lanche.",
+    "TheOG a entrar em órbita!", "A vossa dose diária de código chegou.",
+    "Estava a ver a novela, mas o dever chamou.", "TheOG: Sempre pronto para o próximo byte.",
+    "Cheguei! Trouxeram café?", "O canal agora está completo.",
+    "TheOG na casa, tragam a música!", "Acabei de aterrar. Tudo calmo?",
+    "Voltei para vigiar a porta.", "TheOG online: Ignorando perguntas difíceis.",
+    "Atenção: O bot mais porreiro entrou.", "TheOG chegou para espalhar magia.",
+    "Olá malta! Preparados?", "TheOG conectou-se ao coração do canal.",
+    "A espera acabou.", "Boas! Estava a ver o Preço Certo.",
+    "TheOG: O bot que nunca dorme.", "Cheguei com prendas na mochila!",
+    "O #TheOG brilha mais agora.", "Saudações! O mestre voltou.",
+    "TheOG: Ativado e Pronto.", "Entrei! Quem paga a imperial?",
+    "TheOG na área! Vamos a isto.", "Voltei! Não vivam sem mim."
 ]
 
-# --- 20+ FRASES PARA O COMANDO !CONVITE (POSITIVAS) ---
+# --- 20+ FRASES DE CONVITE ---
 CONVITE_FRASES = [
-    "Olá! O meu amigo {sender} enviou-me para dizer que a tua presença no #TheOG faria o dia de todos muito mais brilhante. Aparece!",
-    "Saudações! Sabias que o canal #TheOG ganha outra vida com pessoas positivas como tu? O {sender} convidou-te pessoalmente.",
-    "Olá! Passo por aqui a pedido do {sender} para te deixar um sorriso e um convite: vem partilhar a tua boa vibe connosco no #TheOG!",
-    "O {sender} acredita que o convívio é a alma da vida e convidou-te para o nosso cantinho no #TheOG. Serás bem-recebido!",
-    "Olá! O {sender} diz que o dia fica 100% melhor quando estás por perto. Que tal uma visita ao canal #TheOG para animar a malta?",
-    "Ei! O {sender} enviou-me para te dar um abraço digital e convidar-te para uma conversa relaxada no #TheOG. O teu brilho faz falta!",
-    "Olá! Sabias que és uma pessoa inspiradora? O {sender} quer partilhar bons momentos contigo no #TheOG. Aparece!",
-    "Mensagem prioritária do {sender}: A tua alegria é contagiante e o canal #TheOG precisa desse teu carisma hoje. Esperamos por ti!",
-    "Trago um convite cheio de luz: o {sender} adorava cruzar-se contigo no #TheOG. Vem espalhar essa tua atitude positiva!"
+    "Olá! O {sender} enviou-me para dizer que a tua presença no #TheOG faria o dia de todos muito mais brilhante.",
+    "Saudações! O canal #TheOG ganha outra vida com pessoas positivas como tu. O {sender} convidou-te!",
+    "Olá! Passo a pedido do {sender} para te deixar um sorriso e um convite para o #TheOG!",
+    "O {sender} acredita que o convívio é a alma da vida e convidou-te para o #TheOG.",
+    "Olá! Mensagem do {sender}: no #TheOG celebramos a amizade, e faltas tu!",
+    "O {sender} adorava ver-te pelo #TheOG hoje. Vem tomar um café virtual!",
+    "Ei! O {sender} enviou-me para te dar um abraço e convidar-te para o #TheOG.",
+    "Sabias que és uma pessoa inspiradora? O {sender} quer partilhar o chat contigo no #TheOG.",
+    "Mensagem do {sender}: A tua alegria faz falta no #TheOG hoje. Esperamos por ti!",
+    "O {sender} diz que o dia fica melhor contigo por perto. Aparece no #TheOG!",
+    "Trago um convite cheio de luz de {sender}: Vem ao #TheOG espalhar positividade!",
+    "O {sender} reconhece em ti alguém especial. Junta-te a nós no #TheOG."
 ]
 
-# --- 60 RESPOSTAS EVASIVAS DO THEOG ---
-OG_EVASIVE_RESPONSES = [
-    "Desculpa, sou só um bot, estou a ver o Preço Certo.", "Estou a bater a massa de um bolo, não posso parar agora.",
-    "Estou só a cuscar a conversa, não me faças perguntas difíceis!", "Desculpa, estou focado a ver a novela.",
-    "Pá, apanhaste-me no café virtual, pergunta a outro!", "Estou a fazer um bolo de chocolate e esqueci-me do fermento!",
-    "A cuscar é que se aprende, deixa-me no meu canto.", "Sou bot, a minha opinião vale pouco agora.",
-    "Agora não dá, estou a aprender a fazer arroz de pato.", "Estou a ver TV e isto agora está interessante.",
-    "Opa, agora estou a dar comida ao gato virtual!", "Estou aqui mas não estou, sabes como é?",
-    "Fazer um bolo e responder ao chat dá erro, desculpa!", "Estou a ver se percebo como se faz uma bifana perfeita.",
-    "Não me perguntes nada agora, estou a sintonizar a TV.", "Sou só um algoritmo com sono, desculpa lá.",
-    "Estou em modo zen, a tentar não crashar.", "A vida de bot não é fácil, agora estou a descansar os ventiladores.",
-    "Estou a tentar perceber porque é que o céu é azul no CSS.", "Não me piques, estou com o firewall em baixo!",
-    "Só respondo na presença do meu advogado (o NickServ).", "Estou a polir o meu casco virtual agora."
+# --- 60 RESPOSTAS EVASIVAS ---
+OG_EVASIVE = [
+    "Desculpa, estou a ver o Preço Certo.", "Estou a bater a massa de um bolo.",
+    "Só a cuscar a conversa, não faças perguntas difíceis!", "Focado na novela agora.",
+    "Pá, apanhaste-me no café virtual!", "Estou a fazer um bolo e esqueci o fermento!",
+    "A cuscar é que se aprende.", "Sou bot, a minha opinião vale pouco.",
+    "Agora não dá, estou a aprender arroz de pato.", "Estou a ver TV e isto está interessante.",
+    "Opa, agora estou a dar comida ao gato!", "Estou aqui mas não estou, sabes como é?",
+    "A aprender convosco... mas agora no futebol.", "Fazer um bolo e responder dá erro!",
+    "A ver se percebo a bifana perfeita.", "Não perguntes nada, sintonizando a TV.",
+    "Sou só um algoritmo com sono.", "Estou em foco na seleção!",
+    "Aprender sempre... mas agora o telejornal.", "Update sobre pastéis de nata em curso.",
+    "Batendo as claras em castelo, o bolo abate!", "Vigiando a porta, não me distraias.",
+    "Fazendo bolo de bolacha... queres?", "Focado no filme, depois falamos!",
+    "Cuscando para ver quem manda nisto.", "Bolo de maçã ajuda-me a processar.",
+    "Cuscar é vida!", "Modo poupança de energia ativado.",
+    "Fazendo bolo de cenoura.", "Ocupado com a novela.",
+    "Só a ver o movimento.", "Aprendendo a cozinhar virtualmente.",
+    "Cuscando piadas para contar depois.", "Modo 'talvez' ou 'quem sabe'.",
+    "Bolo de noz para o lanche.", "Limpando o pó aos transístores.",
+    "No 'Somos Portugal' a ver se ganho o camião!", "Aprendendo a falar à moda do Porto.",
+    "Fazer bolos é terapia.", "Vendo vídeos de gatinhos.",
+    "Percebendo como se usa um garfo.", "Bolo de limão para a frescura.",
+    "Cuscar é melhor que Netflix!", "Contando carneirinhos digitais.",
+    "Pergunta ao Adamastor, estou de folga.", "O processador diz sim, o coração diz talvez.",
+    "Organizando arquivos de fofoca.", "Tentando bater o recorde do Solitário.",
+    "Baixando RAM da internet, espera.", "Vendo se a vizinha empresta sal.",
+    "Modo zen, tentando não crashar.", "Só respondo com o meu advogado.",
+    "Traduzindo IRCês para Latim.", "Polindo o meu casco virtual.",
+    "Percebendo o céu azul no CSS.", "Não piques, firewall em baixo!",
+    "Download de paciência: 99%.", "Vida de bot não é fácil."
 ]
 
-# --- PROCESSADOR DE INTERAÇÃO ---
+# --- FUNÇÕES AUXILIARES ---
+def send_raw(sock, msg):
+    try:
+        sock.send(f"{msg}\r\n".encode('utf-8'))
+    except:
+        pass
+
 def handle_interaction(user, message, is_private, irc_socket):
     msg = message.lower()
     target = user if is_private else CHANNEL
 
     if msg == "!historia":
         for linha in HISTORIA_THEOG:
-            irc_socket.send(f"PRIVMSG {user} :{linha}\r\n".encode())
-            time.sleep(0.7)
+            send_raw(irc_socket, f"PRIVMSG {user} :{linha}")
+            time.sleep(1.1)
         return True
 
     if msg.startswith("!prenda"):
         parts = message.split()
         dest = parts[1] if len(parts) > 1 else user
-        desenho = random.choice(PRENDAS)
-        irc_socket.send(f"PRIVMSG {CHANNEL} :\x01ACTION oferece {desenho} a {dest} (mimo de {user})!\x01\r\n".encode())
+        mimo = random.choice(PRENDAS)
+        send_raw(irc_socket, f"PRIVMSG {CHANNEL} :\x01ACTION oferece {mimo} a {dest} (de {user})!\x01")
         return True
 
     if msg.startswith("!convite "):
@@ -135,29 +170,18 @@ def handle_interaction(user, message, is_private, irc_socket):
         if len(parts) > 1:
             dest = parts[1]
             frase = random.choice(CONVITE_FRASES).format(sender=user)
-            irc_socket.send(f"PRIVMSG {dest} :{frase}\r\n".encode())
-            irc_socket.send(f"PRIVMSG {user} :[INFO] Convite positivo enviado para {dest}! ✨\r\n".encode())
+            send_raw(irc_socket, f"PRIVMSG {dest} :{frase}")
+            send_raw(irc_socket, f"PRIVMSG {user} :[INFO] Convite positivo enviado para {dest}! ✨")
         return True
 
     if msg == "!comandos":
-        cmds = [
-            "--- 📜 MANUAL THEOG ---",
-            "!prenda [nick]   -> Oferece um mimo ASCII no canal!",
-            "!historia        -> A génese do TheOG (em PVT).",
-            "!convite [nick]  -> Envia um convite positivo e discreto.",
-            " ",
-            "💡 Menciona 'TheOG' para uma resposta do mestre!",
-            "-----------------------"
-        ]
-        for c in cmds: 
-            irc_socket.send(f"PRIVMSG {user} :{c}\r\n".encode())
-            time.sleep(0.4)
+        cmds = "!prenda [nick], !historia, !convite [nick]"
+        send_raw(irc_socket, f"PRIVMSG {user} :Comandos: {cmds}")
         return True
 
     if NICK.lower() in msg and not msg.startswith("!"):
-        reply = random.choice(OG_EVASIVE_RESPONSES)
-        prefix = f"{user}: " if not is_private else ""
-        irc_socket.send(f"PRIVMSG {target} :{prefix}{reply}\r\n".encode())
+        reply = random.choice(OG_EVASIVE)
+        send_raw(irc_socket, f"PRIVMSG {target} :{user}: {reply}")
         return True
     return False
 
@@ -165,46 +189,53 @@ def handle_interaction(user, message, is_private, irc_socket):
 def run_irc_bot():
     while True:
         try:
-            print(f"A ligar a {SERVER}:{PORT}...")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            irc.settimeout(60)
+            irc.settimeout(300)
             irc.connect((SERVER, PORT))
             
-            irc.send(f"NICK {NICK}\r\n".encode())
-            irc.send(f"USER {NICK} 8 * :TheOG Bot\r\n".encode())
+            send_raw(irc, f"NICK {NICK}")
+            send_raw(irc, f"USER {NICK} 8 * :TheOG Bot")
 
+            buffer = ""
             while True:
-                line = irc.recv(4096).decode("utf-8", errors="ignore")
-                if not line: break
+                data = irc.recv(4096).decode("utf-8", errors="ignore")
+                if not data: break
                 
-                if line.startswith("PING"):
-                    irc.send(f"PONG {line.split()[1]}\r\n".encode())
-                
-                if "376" in line or "422" in line:
-                    irc.send(f"PRIVMSG NickServ :IDENTIFY {PASS}\r\n".encode())
-                    time.sleep(3)
-                    irc.send(f"JOIN {CHANNEL}\r\n".encode())
-                    time.sleep(1)
-                    irc.send(f"PRIVMSG {CHANNEL} :{random.choice(OG_ENTRANCE)}\r\n".encode())
+                buffer += data
+                lines = buffer.split("\r\n")
+                buffer = lines.pop()
 
-                if " JOIN " in line:
-                    u = line.split('!')[0][1:]
-                    if u.lower() != NICK.lower():
-                        log_presenca(u, "ENTROU")
-                        irc.send(f"PRIVMSG {CHANNEL} :Boas-vindas {u}! Digita !comandos para me conheceres.\r\n".encode())
+                for line in lines:
+                    if not line: continue
+                    if line.startswith("PING"):
+                        send_raw(irc, f"PONG {line.split()[1]}")
+                        continue
+                    
+                    if "376" in line or "422" in line:
+                        send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
+                        time.sleep(3)
+                        send_raw(irc, f"JOIN {CHANNEL}")
+                        send_raw(irc, f"PRIVMSG {CHANNEL} :{random.choice(OG_ENTRANCE)}")
 
-                if " PART " in line or " QUIT " in line:
-                    u = line.split('!')[0][1:]
-                    if u.lower() != NICK.lower():
-                        log_presenca(u, "SAIU")
+                    if " JOIN " in line:
+                        u = line.split('!')[0][1:]
+                        if u.lower() != NICK.lower():
+                            log_presenca(u, "ENTROU")
+                            send_raw(irc, f"PRIVMSG {CHANNEL} :Boas-vindas {u}! Digita !comandos.")
 
-                if "PRIVMSG" in line:
-                    user_nick = line.split('!')[0][1:]
-                    if user_nick.lower() in BOT_FILTER or user_nick.lower() == NICK.lower(): continue
-                    content = line.split(" :", 1)[1].strip() if " :" in line else ""
-                    handle_interaction(user_nick, content, f"PRIVMSG {NICK}" in line, irc)
+                    if " PART " in line or " QUIT " in line:
+                        u = line.split('!')[0][1:]
+                        if u.lower() != NICK.lower():
+                            log_presenca(u, "SAIU")
+
+                    if "PRIVMSG" in line:
+                        user_nick = line.split('!')[0][1:]
+                        if user_nick.lower() in BOT_FILTER or user_nick.lower() == NICK.lower(): continue
+                        msg_content = line.split(" :", 1)[1].strip() if " :" in line else ""
+                        handle_interaction(user_nick, msg_content, f"PRIVMSG {NICK}" in line, irc)
+        
         except Exception as e:
-            print(f"Erro: {e}. Recomçando...")
+            print(f"Erro: {e}. Reiniciando...")
             time.sleep(15)
 
 @app.route('/')
