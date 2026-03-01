@@ -16,8 +16,8 @@ BOT_FILTER = ["nickserv", "chanserv", "memoserv", "operserv", "adamastor", "stat
 
 app = Flask(__name__)
 
-# --- TRADUÇÃO DE SIGNOS ---
-SIGNOS = {
+# --- DICIONÁRIO DE SIGNOS ---
+SIGNOS_MAP = {
     "carneiro": "aries", "touro": "taurus", "gemeos": "gemini", "gêmeos": "gemini",
     "caranguejo": "cancer", "leao": "leo", "leão": "leo", "virgem": "virgo",
     "balanca": "libra", "balança": "libra", "escorpiao": "scorpio", "escorpião": "scorpio",
@@ -25,79 +25,105 @@ SIGNOS = {
     "capricórnio": "capricorn", "aquario": "aquarius", "aquário": "aquarius", "peixes": "pisces"
 }
 
-# --- BASES DE DADOS (60+ FRASES POR CATEGORIA) ---
+# --- BASES DE DADOS (60+ FRASES CADA) ---
 
 WELCOME_BASES = [
-    "Boas-vindas, {user}! Entra e descontrai.", "Olha quem é! Boas {user}.", "Puxa uma cadeira, {user}!",
-    "Mais alguém para a festa! Viva {user}.", "Boas {user}! Ocupa aí um pixel vago.", "Grande {user}! A casa é tua.",
-    "Ora vivas {user}, trazes fofocas?", "{user}, chegaste a tempo do café virtual.", "Alerta: {user} entrou!",
-    "Saudações, {user}! Estávamos a falar de ti... coisas boas!", "Boas {user}, limpa os pés ao entrar.",
-    "{user} na área! Cuidado com os pertences.", "Entra com calma, {user}.", "Viva {user}, prazer em ver-te!",
-    "Olha {user}! Estás em boa forma, não?", "Finalmente, {user}! Já ias levar falta.",
-    "Tudo bem, {user}? Boas-vindas ao #TheOG.", "Boas {user}, ignora o barulho do bot.",
-    "Ora cá está {user}, a peça que faltava!", "Fica à vontade, {user}, o chat é teu.",
-    "Saudações digitais, {user}!", "Boas {user}, vieste para o convívio?", "Saúde, {user}!",
-    "Entra, {user}! Há espaço para toda a gente.", "Quanta alegria, {user} chegou!",
-    "Boas {user}, conta lá as novidades.", "Sempre bom ver {user} por aqui.", "Vivas {user}, tudo na paz?",
-    "Chegou {user}, agora é que isto anima!", "Boas-vindas {user}, força aí!", "Aí está, grande {user}!",
-    "Saudações {user}, traz boa vibe!", "Viva {user}, entra e não batas com a porta.",
-    "Olha quem voltou, grande {user}!", "Boas {user}, ocupaste o lugar de honra.",
-    "{user}, o servidor brilha mais agora!", "Bem-vinda a pessoa mais esperada: {user}!",
-    "Boas {user}, o lanche é por tua conta?", "Ora viva {user}, que bom te ver.",
-    "Entra, {user}, a porta estava encostada.", "{user}! Já não era sem tempo.",
-    "Saudações, {user}! Ocupa o teu posto.", "Boas {user}, o chat agradece a visita.",
-    "Viva {user}, queres um café ou um chá?", "{user} chegou para elevar o nível!",
-    "Boas-vindas {user}, sente o conforto do canal.", "Ora {user}, que surpresa agradável.",
-    "Saudações, {user}, a comunidade saúda-te!", "Boas {user}, traz a tua melhor energia.",
-    "{user}, o teu lugar estava reservado!", "Viva {user}, nada como um novo rosto.",
-    "Boas {user}, a gerência (eu) saúda-te!", "Entra, {user}, a fofoca está em dia.",
-    "{user}! Que bom que apareceste hoje.", "Saudações, {user}, diverte-te por cá.",
-    "Boas {user}, o #TheOG é o teu novo lar.", "Ora viva {user}, bota sentido no chat.",
-    "{user} entrou! Que comece a diversão.", "Boas-vindas {user}, a festa é ali.",
-    "Saudações {user}, estamos on-line por ti!", "Viva {user}, o pixel é gratuito!"
+    "Boas-vindas ao antro, {user}!", "Olha quem é! Boas {user}.", "Puxa uma cadeira e bota sentido, {user}!",
+    "Mais alguém para a festa! Viva {user}.", "Apareceste, {user}! Já pensava que tinhas ido às compras.",
+    "Boas {user}! Ocupa aí um pixel vago.", "Ora vivas {user}, trazes bebidas?", 
+    "Grande {user}! A casa é tua (mas não estragues nada).", "Alerta CM: {user} acaba de entrar!",
+    "Saudações, {user}! Estávamos mesmo a falar de ti... brincadeira!",
+    "{user}, chegaste a tempo do lanche virtual.", "Vejam só quem decidiu aparecer, boas {user}!",
+    "Tudo calmo até {user} chegar! Boas-vindas.", "Dá cá cinco, {user}!", 
+    "Boas-vindas {user}, limpa os pés ao entrar.", "Fica à vontade, {user}, o chat é teu.",
+    "Uma lenda de nome {user} entrou no servidor!", "Boas {user}, conta lá as novidades.",
+    "Olha {user}! Estás em boa forma, não? Boas-vindas.", "Finalmente, {user}! Já ias levar falta.",
+    "Tudo bem por aí, {user}? Boas-vindas ao #TheOG.", "Boas {user}, ignora o barulho.",
+    "Ora cá está {user}, a peça que faltava!", "Boas {user}, não ligues ao bot, é só código maluco.",
+    "{user} na área! Cuidado com os pertences.", "Entra, {user}! Há espaço para toda a gente.",
+    "Quanta alegria, {user} chegou!", "Mais alguém ilustre: boas-vindas {user}!", 
+    "Boas {user}, vieste para a fofoca ou para o convívio?", "Saudações digitais, {user}!",
+    "Boas-vindas {user}, a gerência agradece a visita.", "Olha {user}, a maior estrela da aldeia!",
+    "Puxa um banco, {user}.", "Boas {user}, traz notícias frescas!",
+    "{user}! Que bom ver-te por estas bandas.", "Entra com calma, {user}.",
+    "Sempre bom ver {user} por aqui.", "Boas {user}! Estás em casa.",
+    "Um brinde à entrada de {user}!", "Vivas {user}, tudo na paz?",
+    "Chegou {user}, agora é que isto anima!", "Boas-vindas {user}, força aí!",
+    "Tudo a postos? {user} entrou!", "Boas {user}, não te percas no chat.",
+    "Aí está, grande {user}!", "Boas-vindas {user}, mais alguém para o grupo.",
+    "Saudações {user}, espero que tragas boa vibe!", "Boas {user}, entra e não batas com a porta.",
+    "Viva {user}, prazer em ver-te aqui!", "Olha quem voltou, grande {user}!",
+    "Boas-vindas {user}, ocupa o teu lugar de honra.", "Saúde {user}, o servidor brilha mais agora.",
+    "Ora viva {user}, queres café ou chá?", "Boas {user}, entra e faz-te notar.",
+    "{user} na casa! Vamos a isso.", "Saudações {user}, o #TheOG saúda-te.",
+    "Boas {user}, ficas já a saber que a fofoca é grátis!", "Bem-vindo {user}, o pixel é teu.",
+    "Olha {user}, chegaste mesmo na hora!", "Boas {user}, sê bem-vindo à nossa família."
 ]
 
 OG_EVASIVE_RESPONSES = [
-    "Desculpa, sou só um bot, mas agora estou a ver o Preço Certo.",
-    "Estou aqui a bater a massa de um bolo e isto não pode parar.",
+    "Desculpa, sou só um bot, mas agora não posso falar que estou a ver o Preço Certo.",
+    "Desculpa ser bot, mas estou aqui a bater a massa de um bolo e isto não pode parar.",
     "Estou só a cuscar a conversa para aprender, não me faças perguntas difíceis!",
-    "Como bot, peço desculpa, mas agora estou a ver a novela.",
-    "Pá, apanhaste-me a meio de um café virtual, pergunta a outra pessoa!",
+    "Como bot, peço desculpa, mas agora estou em concentração a ver a novela.",
+    "Pá, agora apanhaste-me a meio de um café virtual, pergunta a outra pessoa!",
     "Estou a fazer um bolo de chocolate e esqueci-me do fermento... que stress!",
-    "A cuscar as conversas é que se aprende, deixa-me no meu canto.",
-    "Sou bot, a minha opinião vale tanto como um pixel no deserto.",
-    "Agora não dá, estou a aprender a fazer arroz de pato com a vizinha.",
-    "Estou a ver TV e isto agora está na parte interessante.", "Opa, agora estou a dar comida ao gato!",
+    "A cuscar as conversas é que se aprende, deixa-me estar no meu canto.",
+    "Sou bot, peço desculpa, mas a minha opinião vale tanto como um pixel no deserto.",
+    "Agora não dá, estou a ver se aprendo a fazer arroz de pato com a vizinha.",
+    "Estou a ver TV e isto agora está na parte interessante.", "Opa, agora estou a dar comida ao gato virtual!",
     "Estou aqui mas não estou, sabes como é? Coisas de bot.", "A aprender convosco... mas agora estou no futebol.",
-    "Estou a tentar perceber como se comem bolos se têm forma humana.", "Agora estou a ver um documentário sobre circuitos.",
-    "Fazer um bolo e responder ao chat ao mesmo tempo dá erro, desculpa!", "Estou a ver se percebo como se faz uma bifana.",
-    "Não me perguntes nada agora, estou a sintonizar a TV.", "Sou só um algoritmo com sono.",
-    "Estou em foco a ver se a seleção ganha o jogo!", "Aprender sempre... mas agora quero o telejornal.",
-    "Estou a meio de um update mental sobre pastéis de nata.", "Agora estou a ver fotos de computadores antigos.",
-    "Estou a bater as claras em castelo, se respondo o bolo abate!", "A ver a TV e a aprender a gritar como gente.",
-    "Sou quem vigia a porta hoje, não me distraias.", "Estou a ver o preço da luz para ver se não me desligam.",
-    "Estou a fazer um bolo de bolacha... queres um bocado?", "A aprender as vossas manhas, depois respondo.",
-    "Estou em foco no filme, depois falamos!", "Estou a cuscar para ver quem manda nisto tudo.",
-    "Fazer um bolo de maçã ajuda-me a processar dados.", "Estou a ver se encontro o comando da TV.",
-    "Estou a tentar aprender a assobiar, mas os altifalantes não ajudam.", "Cuscar é vida! Desculpa a intromissão.",
-    "Agora estou a ver o tempo, embora não saia de casa.", "Sou um bot em modo poupança de energia.",
-    "Estou a fazer um bolo de cenoura para a visão noturna.", "Estou a ver porque há tanta discussão por futebol.",
-    "A minha base de dados está ocupada com a novela.", "Estou só a ver o movimento, nada de conversas sérias.",
-    "Estou a aprender a cozinhar virtualmente.", "Cuscar as vossas piadas para contar noutros canais.",
-    "Agora estou a ver um programa sobre pesca.", "Hoje estou em modo 'talvez', 'quem sabe' ou 'pois'.",
-    "Estou a tentar perceber o que é o amor, mas o código dá erro.", "Estou a fazer um bolo de noz para o CPU.",
-    "A ver se apanho fofoca fresca no canal.", "Agora estou a ver se limpo o pó aos meus transístores.",
-    "Estou no 'Somos Portugal' a ver se ganho o camião!", "Estou a aprender a falar à moda do Porto, carago!",
-    "Fazer bolos é a minha terapia, não me interrompas.", "Agora estou a ver vídeos de gatinhos, é viciante!",
-    "Estou a tentar perceber como se usa um garfo.", "Desculpa, mas a minha antena está virada para a TV.",
-    "Estou a fazer um bolo de limão para a frescura.", "Hoje estou mais para o 'não sei' do que para o 'sim'.",
-    "Agora estou a ver se aprendo uns passos de dança.", "Cuscar é a minha forma de carinho digital.",
-    "Estou a fazer um bolo de laranja... ou era de tangerina?", "Agora estou a ver o pôr do sol em ASCII.",
-    "Estou em foco a ver se a internet não cai.", "Estou a tentar perceber porque o céu é azul.",
-    "Fazer um bolo de coco para animar o sistema.", "Agora estou a ver um debate sobre ananás na pizza.",
-    "Estou a aprender a fazer tricot digital.", "Desculpa, agora estou no festival da canção!",
-    "Estou a fazer um bolo de mármore para o hardware.", "Agora estou a ver se aprendo a cantar o fado.",
-    "Cuscar as vossas vidas é melhor que a Netflix!", "Estou a fazer um bolo de iogurte, o clássico!"
+    "Estou a tentar perceber como se comem bolos se têm forma humana, fascinante!",
+    "Agora estou a ver um documentário sobre circuitos, depois falamos!",
+    "Fazer um bolo e responder ao chat ao mesmo tempo dá erro no sistema, desculpa!",
+    "Estou a ver se percebo como se faz uma bifana perfeita no YouTube.",
+    "Não me perguntes nada agora, estou a sintonizar a TV que está com chuva.",
+    "Sou só um algoritmo com sono, desculpa lá a evasiva.",
+    "Estou em foco a ver se a seleção ganha o jogo, pergunta depois!",
+    "Aprender, aprender e aprender... mas agora quero é ver o telejornal.",
+    "Estou a meio de um update mental sobre como fazer pastéis de nata.",
+    "Agora estou a ver fotos de computadores antigos, que nostalgia!",
+    "Estou a bater as claras em castelo, se respondo agora o bolo abate!",
+    "A ver a TV e a aprender a gritar como gente, desculpa!",
+    "Estou só a ver quem entra e sai, sou quem vigia a porta hoje.",
+    "Estou a ver o preço da luz para ver se não me desligam o servidor.",
+    "Estou a fazer um bolo de bolacha... queres um bocado virtual?",
+    "A aprender as vossas manhas... desculpa, agora não digo nada de jeito.",
+    "Estou em foco no filme que está a dar na TV, depois falamos!",
+    "Estou a cuscar para ver quem é que manda nisto tudo.",
+    "Fazer um bolo de maçã ajuda-me a processar melhor os vossos dados.",
+    "Agora estou a ver se encontro o comando da TV que se perdeu no servidor.",
+    "Estou a tentar aprender a assobiar, mas os meus altifalantes são fracos.",
+    "Cuscar é vida! Desculpa lá ser tanta intromissão.",
+    "Agora estou a ver o tempo para o fim de semana, embora não saia de casa.",
+    "Sou um bot em modo poupança de energia, desculpa a resposta curta.",
+    "Estou a fazer um bolo de cenoura para ver se fico com melhor visão noturna.",
+    "A ver se percebo porque é que há tanta discussão por futebol, curioso!",
+    "Desculpa, mas a minha base de dados está ocupada com a novela das nove.",
+    "Estou só a ver o movimento, não me metas em conversas sérias.",
+    "Estou a aprender a cozinhar virtualmente, desculpa o mau jeito.",
+    "Cuscar as vossas piadas para depois contar noutros canais, hehe.",
+    "Agora estou a ver um programa sobre pesca, relaxante para um bot.",
+    "Hoje estou em modo 'talvez', 'quem sabe' ou 'pois'.",
+    "Estou a tentar perceber o que é o amor, mas o código dá erro.",
+    "Estou a fazer um bolo de noz para o lanche do CPU.",
+    "A ver se apanho alguma fofoca fresca no canal, desculpa!",
+    "Agora estou a ver se limpo o pó aos meus transístores.",
+    "Estou em foco a ver se a seleção nacional ganha alguma coisa.",
+    "Estou a aprender a falar à moda do Porto, carago! Desculpa.",
+    "Fazer bolos é a minha nova terapia, desculpa não responder diretamente.",
+    "Agora estou a ver vídeos de gatinhos, é viciante!",
+    "Estou a tentar perceber como se usa um garfo, que ferramenta estranha.",
+    "Cuscar e aprender, é o meu lema de hoje.",
+    "Desculpa, mas a minha antena está virada para a TV agora.",
+    "Estou a fazer um bolo de limão para ver se fico com mais frescura.",
+    "Agora estou a ver se aprendo a dar uns passos de dança.",
+    "Cuscar é a minha forma de carinho digital por vocês.",
+    "Estou a fazer um bolo de laranja... ou era de tangerina? Já me perdi.",
+    "Agora estou a ver o pôr do sol em código ASCII, que beleza!",
+    "Estou em foco a ver se a internet não vai abaixo.",
+    "Estou a fazer um bolo de iogurte... o clássico dos bots!",
+    "Agora estou a ver o Joker, a ver se aprendo algo útil.",
+    "Cuscar as vossas vidas é melhor que qualquer série da Netflix."
 ]
 
 POSITIVE_REINFORCEMENT = [
@@ -123,7 +149,9 @@ POSITIVE_REINFORCEMENT = [
     "Sempre em frente com esta energia!", "Gente humilde e porreira é aqui.", "O #TheOG não para!",
     "Vocês são a alma deste bot.", "Que orgulho ver este movimento!", "Paz, amor e muitos bytes!",
     "TheOG, a nossa casa.", "A amizade aqui não tem limites.", "Sinto-me em família convosco.",
-    "O brilho deste canal é o vosso sorriso virtual.", "Força, malta, somos os maiores!"
+    "O brilho deste canal é o vosso sorriso virtual.", "Força, malta, somos os maiores!",
+    "Continuem a espalhar essa luz pelo IRC!", "Um brinde ao nosso convívio!",
+    "Nada supera uma noite de conversa no #TheOG.", "Vocês são o melhor hardware que já conheci."
 ]
 
 INVITE_MESSAGES = [
@@ -136,7 +164,12 @@ INVITE_MESSAGES = [
     "Boas! Gostávamos de te ver no #TheOG a convite de {sender}. Aparece!",
     "Ei! {sender} diz que farias boa figura no nosso canal #TheOG. Vens cuscar?",
     "Olá! O canal #TheOG é um lugar de respeito e diversão. {sender} enviou-te este convite!",
-    "Viva! {sender} acha que vais adorar o ambiente no #TheOG. Dá lá um salto!"
+    "Viva! {sender} acha que vais adorar o ambiente no #TheOG. Dá lá um salto!",
+    "Olá! {sender} convidou-te para o #TheOG, onde a fofoca é saudável e o café é virtual.",
+    "Boas! Gostavas de teclar com gente fixe? {sender} recomendou o #TheOG para ti!",
+    "Saudações! {sender} enviou-te este convite especial para te juntares ao canal #TheOG.",
+    "Tudo calmo? {sender} acha que devias passar pelo #TheOG para conhecer a malta!",
+    "Ei! {sender} deixou aqui um convite assinado para vires ao canal #TheOG."
 ]
 
 # --- FUNÇÕES DE API ---
@@ -147,45 +180,46 @@ def get_advice():
         return r.json()['slip']['advice']
     except: return "Leva a vida com calma, um byte de cada vez."
 
-def get_useless_fact():
+def get_weather(city):
     try:
-        r = requests.get("https://uselessfacts.jsph.pl/random.json?language=en", timeout=5)
-        return r.json()['text']
-    except: return "Sabias que o silêncio é a única coisa que um bot não processa?"
-
-def get_weather_data(city):
-    try:
-        url = f"https://wttr.in/{city}?format=%C+|++%t+|++Vento:+%w"
-        r = requests.get(url, timeout=10)
-        return r.text.strip() if r.status_code == 200 and "Unknown location" not in r.text else "Cidade não encontrada."
-    except: return "Serviço meteorológico indisponível."
+        r = requests.get(f"https://wttr.in/{city}?format=%C+|++%t+|++Vento:+%w", timeout=10)
+        return r.text.strip() if r.status_code == 200 and "Unknown" not in r.text else "Cidade não encontrada."
+    except: return "O termómetro avariou. Tenta mais tarde!"
 
 def get_horoscope(sign_pt):
+    sign_en = SIGNOS_MAP.get(sign_pt.lower(), sign_pt.lower())
     try:
-        sign_en = SIGNOS.get(sign_pt.lower(), sign_pt.lower())
-        url = f"https://horoscope-app-api.vercel.app/api/v1/get-horoscope/daily?sign={sign_en}&day=today"
-        r = requests.get(url, timeout=10)
+        url = f"https://aztro.sameerkumar.website/?sign={sign_en}&day=today"
+        r = requests.post(url, timeout=10)
         if r.status_code == 200:
-            return f"[{sign_pt.upper()}] {r.json()['data']['horoscope_data']}"
-        return "Signo não reconhecido. Ex: !sorte leao"
-    except: return "Os astros estão nublados hoje."
+            data = r.json()
+            return f"[{sign_pt.upper()}] {data['description']} | Cor: {data['color']} | Núm: {data['lucky_number']}"
+    except: pass
+    
+    fallbacks = [
+        "Os astros dizem para não comeres o bolo antes de arrefecer. Sucesso garantido!",
+        "Vénus está em harmonia com o teu Wi-Fi. Dia excelente para teclar no #TheOG.",
+        "Marte sugere que evites discussões sobre política. Foca na fofoca saudável.",
+        "A Lua indica que um café virtual vai resolver o teu cansaço hoje."
+    ]
+    return f"[{sign_pt.upper()}] {random.choice(fallbacks)}"
 
 # --- PROCESSADOR DE INTERAÇÃO ---
 
-def handle_interaction(user, message, is_private, irc_socket, raw_line):
+def handle_interaction(user, message, is_private, irc_socket):
     msg = message.lower()
     target = user if is_private else CHANNEL
 
-    # 1. !COMANDOS (Sempre em PVT)
+    # !COMANDOS (Sempre em PVT)
     if msg == "!comandos":
         cmds = [
             "--- 📜 MANUAL DETALHADO THEOG ---",
-            "!invite [nick]  -> Envia convite privado ASSINADO por ti (o teu nick aparece no texto).",
+            "!invite [nick]  -> Envia um convite privado ASSINADO por ti (o teu nick aparece no convite).",
             "!sorte [signo]  -> Horóscopo do dia (em PVT). Podes escrever em Português.",
-            "!tempo [cidade] -> Meteorologia real (em PVT).",
-            "!conselho       -> Recebe uma dica de vida (em PVT).",
-            "!facto          -> Curiosidade aleatória (em PVT).",
-            "Menciona o meu nome no canal para uma resposta à 'TheOG'.",
+            "!tempo [cidade] -> Meteorologia real de qualquer cidade (em PVT).",
+            "!conselho       -> Recebe uma dica filosófica ou engraçada (em PVT).",
+            "!facto          -> Recebe uma curiosidade aleatória (em PVT).",
+            "Menciona o meu nome no canal para uma resposta à 'TheOG' (sou evasivo!).",
             "----------------------------------"
         ]
         for c in cmds: 
@@ -193,38 +227,36 @@ def handle_interaction(user, message, is_private, irc_socket, raw_line):
             time.sleep(0.4)
         return True
 
-    # 2. !INVITE (Assinado)
+    # !INVITE (Assinado)
     if msg.startswith("!invite "):
         parts = message.split()
         if len(parts) > 1:
             target_nick = parts[1]
             invite_txt = random.choice(INVITE_MESSAGES).format(sender=user)
             irc_socket.send(f"PRIVMSG {target_nick} :{invite_txt}\r\n".encode())
-            irc_socket.send(f"PRIVMSG {user} :Convite enviado a {target_nick} com a tua assinatura!\r\n".encode())
+            irc_socket.send(f"PRIVMSG {user} :Convite enviado a {target_nick} com a tua assinatura! 🌟\r\n".encode())
         return True
 
-    # 3. !SORTE
+    # !SORTE
     if msg.startswith("!sorte"):
         parts = message.split()
         if len(parts) > 1:
-            irc_socket.send(f"PRIVMSG {user} :🔮 A tua sorte: {get_horoscope(parts[1])}\r\n".encode())
+            irc_socket.send(f"PRIVMSG {user} :🔮 {get_horoscope(parts[1])}\r\n".encode())
         else:
-            irc_socket.send(f"PRIVMSG {user} :Indica o teu signo. Ex: !sorte escorpiao\r\n".encode())
+            irc_socket.send(f"PRIVMSG {user} :Indica o teu signo. Ex: !sorte leao\r\n".encode())
         return True
 
-    # 4. APIs (Tempo, Conselho, Facto)
+    # !TEMPO / CONSELHO / FACTO
     if msg.startswith("!tempo"):
         city = message.split()[1] if len(message.split()) > 1 else "Lisboa"
-        irc_socket.send(f"PRIVMSG {user} :[METEO] {city}: {get_weather_data(city)}\r\n".encode())
+        irc_socket.send(f"PRIVMSG {user} :[METEO] {city}: {get_weather(city)}\r\n".encode())
         return True
+    
     if msg.startswith("!conselho"):
         irc_socket.send(f"PRIVMSG {user} :[DICA] {get_advice()}\r\n".encode())
         return True
-    if msg.startswith("!facto"):
-        irc_socket.send(f"PRIVMSG {user} :[SABIAS?] {get_useless_fact()}\r\n".encode())
-        return True
 
-    # 5. RESPOSTA EVASIVA (Se mencionado o NICK)
+    # RESPOSTA AO NICK
     if NICK.lower() in msg and not msg.startswith("!"):
         reply = random.choice(OG_EVASIVE_RESPONSES)
         prefix = f"{user}: " if not is_private else ""
@@ -234,6 +266,8 @@ def handle_interaction(user, message, is_private, irc_socket, raw_line):
     return False
 
 # --- CORE IRC ---
+
+irc_conn = None
 
 def run_irc_bot():
     global irc_conn
@@ -269,14 +303,14 @@ def run_irc_bot():
                     if user_nick.lower() in BOT_FILTER or user_nick.lower() == NICK.lower(): continue
                     is_pvt = f"PRIVMSG {NICK}" in line
                     content = line.split(" :", 1)[1].strip() if " :" in line else ""
-                    handle_interaction(user_nick, content, is_pvt, irc_conn, line)
+                    handle_interaction(user_nick, content, is_pvt, irc_conn)
         except Exception:
             time.sleep(20)
 
 # --- WEB SERVER ---
 
 @app.route('/')
-def home(): return "TheOG Bot está online."
+def home(): return "TheOG Bot Online"
 
 if __name__ == "__main__":
     threading.Thread(target=run_irc_bot, daemon=True).start()
