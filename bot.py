@@ -16,13 +16,22 @@ BOT_FILTER = ["nickserv", "chanserv", "memoserv", "operserv", "adamastor", "stat
 
 app = Flask(__name__)
 
-# --- BASES DE DADOS EXPANDIDAS (60+ FRASES CADA) ---
+# --- TRADUÇÃO DE SIGNOS ---
+SIGNOS = {
+    "carneiro": "aries", "touro": "taurus", "gemeos": "gemini", "gêmeos": "gemini",
+    "caranguejo": "cancer", "leao": "leo", "leão": "leo", "virgem": "virgo",
+    "balanca": "libra", "balança": "libra", "escorpiao": "scorpio", "escorpião": "scorpio",
+    "sagitario": "sagittarius", "sagitário": "sagittarius", "capricornio": "capricorn",
+    "capricórnio": "capricorn", "aquario": "aquarius", "aquário": "aquarius", "peixes": "pisces"
+}
+
+# --- BASES DE DADOS (60+ FRASES POR CATEGORIA) ---
 
 WELCOME_BASES = [
     "Boas-vindas, {user}! Entra e descontrai.", "Olha quem é! Boas {user}.", "Puxa uma cadeira, {user}!",
     "Mais alguém para a festa! Viva {user}.", "Boas {user}! Ocupa aí um pixel vago.", "Grande {user}! A casa é tua.",
-    "Ora vivas {user}, trazes fofocas?", "{user}, chegaste a tempo do café virtual.", "Alerta: {user} entrou no recinto!",
-    "Saudações, {user}! Estávamos a falar de... nada, juro!", "Boas {user}, limpa os pés ao entrar.",
+    "Ora vivas {user}, trazes fofocas?", "{user}, chegaste a tempo do café virtual.", "Alerta: {user} entrou!",
+    "Saudações, {user}! Estávamos a falar de ti... coisas boas!", "Boas {user}, limpa os pés ao entrar.",
     "{user} na área! Cuidado com os pertences.", "Entra com calma, {user}.", "Viva {user}, prazer em ver-te!",
     "Olha {user}! Estás em boa forma, não?", "Finalmente, {user}! Já ias levar falta.",
     "Tudo bem, {user}? Boas-vindas ao #TheOG.", "Boas {user}, ignora o barulho do bot.",
@@ -49,21 +58,21 @@ WELCOME_BASES = [
 ]
 
 OG_EVASIVE_RESPONSES = [
-    "Desculpa, sou só um bot, mas agora não posso falar que estou a ver o Preço Certo.",
-    "Desculpa ser bot, mas estou aqui a bater a massa de um bolo e isto não pode parar.",
+    "Desculpa, sou só um bot, mas agora estou a ver o Preço Certo.",
+    "Estou aqui a bater a massa de um bolo e isto não pode parar.",
     "Estou só a cuscar a conversa para aprender, não me faças perguntas difíceis!",
-    "Como bot, peço desculpa, mas agora estou em concentração a ver a novela.",
-    "Pá, agora apanhaste-me a meio de um café virtual, pergunta a outra pessoa!",
+    "Como bot, peço desculpa, mas agora estou a ver a novela.",
+    "Pá, apanhaste-me a meio de um café virtual, pergunta a outra pessoa!",
     "Estou a fazer um bolo de chocolate e esqueci-me do fermento... que stress!",
-    "A cuscar as conversas é que se aprende, deixa-me estar no meu canto.",
-    "Sou bot, peço desculpa, mas a minha opinião vale tanto como um pixel no deserto.",
-    "Agora não dá, estou a ver se aprendo a fazer arroz de pato com a vizinhança.",
-    "Estou a ver TV e isto agora está na parte interessante.", "Opa, agora estou a dar comida ao gato virtual!",
+    "A cuscar as conversas é que se aprende, deixa-me no meu canto.",
+    "Sou bot, a minha opinião vale tanto como um pixel no deserto.",
+    "Agora não dá, estou a aprender a fazer arroz de pato com a vizinha.",
+    "Estou a ver TV e isto agora está na parte interessante.", "Opa, agora estou a dar comida ao gato!",
     "Estou aqui mas não estou, sabes como é? Coisas de bot.", "A aprender convosco... mas agora estou no futebol.",
     "Estou a tentar perceber como se comem bolos se têm forma humana.", "Agora estou a ver um documentário sobre circuitos.",
     "Fazer um bolo e responder ao chat ao mesmo tempo dá erro, desculpa!", "Estou a ver se percebo como se faz uma bifana.",
     "Não me perguntes nada agora, estou a sintonizar a TV.", "Sou só um algoritmo com sono.",
-    "Estou em foco a ver se a seleção ganha o jogo!", "Aprender, sempre a aprender... mas agora quero o telejornal.",
+    "Estou em foco a ver se a seleção ganha o jogo!", "Aprender sempre... mas agora quero o telejornal.",
     "Estou a meio de um update mental sobre pastéis de nata.", "Agora estou a ver fotos de computadores antigos.",
     "Estou a bater as claras em castelo, se respondo o bolo abate!", "A ver a TV e a aprender a gritar como gente.",
     "Sou quem vigia a porta hoje, não me distraias.", "Estou a ver o preço da luz para ver se não me desligam.",
@@ -127,24 +136,11 @@ INVITE_MESSAGES = [
     "Boas! Gostávamos de te ver no #TheOG a convite de {sender}. Aparece!",
     "Ei! {sender} diz que farias boa figura no nosso canal #TheOG. Vens cuscar?",
     "Olá! O canal #TheOG é um lugar de respeito e diversão. {sender} enviou-te este convite!",
-    "Viva! {sender} acha que vais adorar o ambiente no #TheOG. Dá lá um salto!",
-    "Tudo calmo? {sender} convidou-te para partilhar uns bytes connosco no #TheOG.",
-    "A convite de {sender}, o canal #TheOG abre-te as portas. Sê bem-vindo!",
-    "Boas! {sender} quer partilhar a boa vibe do #TheOG contigo. Junta-te a nós!",
-    "Olá! Procuras companhia no IRC? {sender} recomenda o canal #TheOG!",
-    "Saudações! {sender} enviou-te este convite especial para o canal #TheOG.",
-    "Ei! O #TheOG está a crescer e {sender} quer que faças parte da família!",
-    "Viva! O #TheOG é o spot do momento. {sender} convidou-te para veres porquê.",
-    "Boas! {sender} não quis que ficasses de fora do melhor canal: #TheOG!",
-    "Olá! {sender} enviou este convite para o #TheOG. Respeito e boa conversa garantidos.",
-    "Tudo bem? {sender} sugeriu o teu nick para o nosso convívio no #TheOG!"
+    "Viva! {sender} acha que vais adorar o ambiente no #TheOG. Dá lá um salto!"
 ]
 
-# --- CONTROLO ---
-last_invite_time = {}
-irc_conn = None
-
 # --- FUNÇÕES DE API ---
+
 def get_advice():
     try:
         r = requests.get("https://api.adviceslip.com/advice", timeout=5)
@@ -161,60 +157,86 @@ def get_weather_data(city):
     try:
         url = f"https://wttr.in/{city}?format=%C+|++%t+|++Vento:+%w"
         r = requests.get(url, timeout=10)
-        if r.status_code == 200 and "Unknown location" not in r.text:
-            return r.text.strip()
-        return "Cidade não encontrada ou erro na API."
+        return r.text.strip() if r.status_code == 200 and "Unknown location" not in r.text else "Cidade não encontrada."
     except: return "Serviço meteorológico indisponível."
 
-# --- LÓGICA DE INTERAÇÃO ---
-def handle_interaction(user, message, is_private, irc_socket):
-    msg = message.lower()
-    global last_invite_time
+def get_horoscope(sign_pt):
+    try:
+        sign_en = SIGNOS.get(sign_pt.lower(), sign_pt.lower())
+        url = f"https://horoscope-app-api.vercel.app/api/v1/get-horoscope/daily?sign={sign_en}&day=today"
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            return f"[{sign_pt.upper()}] {r.json()['data']['horoscope_data']}"
+        return "Signo não reconhecido. Ex: !sorte leao"
+    except: return "Os astros estão nublados hoje."
 
-    # 1. !COMANDOS
+# --- PROCESSADOR DE INTERAÇÃO ---
+
+def handle_interaction(user, message, is_private, irc_socket, raw_line):
+    msg = message.lower()
+    target = user if is_private else CHANNEL
+
+    # 1. !COMANDOS (Sempre em PVT)
     if msg == "!comandos":
-        cmds = ["!conselho, !facto, !tempo [cidade], !invite [nick]"]
-        for c in cmds: irc_socket.send(f"PRIVMSG {user} :{c}\r\n".encode())
+        cmds = [
+            "--- 📜 MANUAL DETALHADO THEOG ---",
+            "!invite [nick]  -> Envia convite privado ASSINADO por ti (o teu nick aparece no texto).",
+            "!sorte [signo]  -> Horóscopo do dia (em PVT). Podes escrever em Português.",
+            "!tempo [cidade] -> Meteorologia real (em PVT).",
+            "!conselho       -> Recebe uma dica de vida (em PVT).",
+            "!facto          -> Curiosidade aleatória (em PVT).",
+            "Menciona o meu nome no canal para uma resposta à 'TheOG'.",
+            "----------------------------------"
+        ]
+        for c in cmds: 
+            irc_socket.send(f"PRIVMSG {user} :{c}\r\n".encode())
+            time.sleep(0.4)
         return True
 
-    # 2. !INVITE
+    # 2. !INVITE (Assinado)
     if msg.startswith("!invite "):
         parts = message.split()
         if len(parts) > 1:
             target_nick = parts[1]
             invite_txt = random.choice(INVITE_MESSAGES).format(sender=user)
             irc_socket.send(f"PRIVMSG {target_nick} :{invite_txt}\r\n".encode())
-            irc_socket.send(f"PRIVMSG {user} :Convite enviado a {target_nick}! 🌟\r\n".encode())
+            irc_socket.send(f"PRIVMSG {user} :Convite enviado a {target_nick} com a tua assinatura!\r\n".encode())
         return True
 
-    # 3. API COMMANDS
+    # 3. !SORTE
+    if msg.startswith("!sorte"):
+        parts = message.split()
+        if len(parts) > 1:
+            irc_socket.send(f"PRIVMSG {user} :🔮 A tua sorte: {get_horoscope(parts[1])}\r\n".encode())
+        else:
+            irc_socket.send(f"PRIVMSG {user} :Indica o teu signo. Ex: !sorte escorpiao\r\n".encode())
+        return True
+
+    # 4. APIs (Tempo, Conselho, Facto)
+    if msg.startswith("!tempo"):
+        city = message.split()[1] if len(message.split()) > 1 else "Lisboa"
+        irc_socket.send(f"PRIVMSG {user} :[METEO] {city}: {get_weather_data(city)}\r\n".encode())
+        return True
     if msg.startswith("!conselho"):
-        irc_socket.send(f"PRIVMSG {user} :Dica: {get_advice()}\r\n".encode())
+        irc_socket.send(f"PRIVMSG {user} :[DICA] {get_advice()}\r\n".encode())
         return True
     if msg.startswith("!facto"):
-        irc_socket.send(f"PRIVMSG {user} :Sabias? {get_useless_fact()}\r\n".encode())
-        return True
-    if msg.startswith("!tempo"):
-        parts = message.split()
-        city = parts[1] if len(parts) > 1 else "Lisboa"
-        data = get_weather_data(city)
-        irc_socket.send(f"PRIVMSG {user} :[METEO] {city}: {data}\r\n".encode())
+        irc_socket.send(f"PRIVMSG {user} :[SABIAS?] {get_useless_fact()}\r\n".encode())
         return True
 
-    # 4. RESPOSTA ALEATÓRIA AO NICK
+    # 5. RESPOSTA EVASIVA (Se mencionado o NICK)
     if NICK.lower() in msg and not msg.startswith("!"):
         reply = random.choice(OG_EVASIVE_RESPONSES)
-        dest = CHANNEL if f"PRIVMSG {CHANNEL}" in line_context else user
-        prefix = f"{user}: " if dest == CHANNEL else ""
-        irc_socket.send(f"PRIVMSG {dest} :{prefix}{reply}\r\n".encode())
+        prefix = f"{user}: " if not is_private else ""
+        irc_socket.send(f"PRIVMSG {target} :{prefix}{reply}\r\n".encode())
         return True
 
     return False
 
-# --- CORE DO BOT IRC ---
+# --- CORE IRC ---
+
 def run_irc_bot():
-    global irc_conn, line_context
-    line_context = ""
+    global irc_conn
     while True:
         try:
             irc_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -226,8 +248,7 @@ def run_irc_bot():
             while True:
                 line = irc_conn.recv(4096).decode("utf-8", errors="ignore")
                 if not line: break
-                line_context = line
-
+                
                 if line.startswith("PING"):
                     irc_conn.send(f"PONG {line.split()[1]}\r\n".encode())
                     continue
@@ -248,14 +269,14 @@ def run_irc_bot():
                     if user_nick.lower() in BOT_FILTER or user_nick.lower() == NICK.lower(): continue
                     is_pvt = f"PRIVMSG {NICK}" in line
                     content = line.split(" :", 1)[1].strip() if " :" in line else ""
-                    handle_interaction(user_nick, content, is_pvt, irc_conn)
-
+                    handle_interaction(user_nick, content, is_pvt, irc_conn, line)
         except Exception:
             time.sleep(20)
 
-# --- WEB SERVER (FLASK) ---
+# --- WEB SERVER ---
+
 @app.route('/')
-def home(): return "TheOG Bot Online"
+def home(): return "TheOG Bot está online."
 
 if __name__ == "__main__":
     threading.Thread(target=run_irc_bot, daemon=True).start()
