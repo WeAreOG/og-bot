@@ -12,74 +12,59 @@ PORT = 6667
 NICK = "TheOG"
 PASS = "Nasomet112#" 
 CHANNEL = "#TheOG"
-BOT_FILTER = ["nickserv", "chanserv", "memoserv", "operserv", "adamastor", "statserv", "secure", "authserv", "irc", "theog", "bot"]
+BOT_FILTER = ["nickserv", "chanserv", "memoserv", "operserv", "adamastor", "statserv", "secure", "authserv", "irc", "theog", "bot", "serv"]
 
 app = Flask(__name__)
-LAST_SEEN = {}       # {nick: timestamp}
-CHANNEL_USERS = set() # Nicks atualmente no canal
+LAST_SEEN = {}       
+CHANNEL_USERS = set() 
 
 # --- MONITOR DE LOGS ---
 def log_presenca(user, accao):
     hora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     print(f"[{hora}] {user} {accao}")
 
-# --- TEXTO DA HISTÓRIA ---
-HISTORIA_THEOG = ["Estamos a construir a história com base em cada um dos utilizadores."]
+# --- BASE DE DADOS EXPANDIDA (MAIS 30 FRASES POR CATEGORIA) ---
 
-# --- PRENDAS (Expandido +30) ---
 PRENDAS = [
     "---@>>-- (uma Rosa)", "---{---(@ (uma Flor)", "@->-- (Botão)", "---<@>--- (Margarida)",
-    "  <3  (Coração)", " <3 <3 (Dois Corações)", " ( <3 ) (Abraço)", " [PRENDA] (Caixa)",
-    "---}---* (Flor Campo)", "---@>-- (Tulipa)", " :-* (Beijo)", " ( ^_^_^ ) (Sorriso)",
-    " ((_)) (Abraço)", "---ooo--- (Colar)", " ()-=-() (Anel Amizade)", " \o/ (Festa!)",
-    "---[*]-- (Flor Mágica)", " O-- (Pirulito)", " [_] (Chá)", " ( ^_^)っ☕ (Café)",
+    "  <3  (Coração)", " [PRENDA] (Caixa)", "---ooo--- (Colar)", " ( ^_^)っ☕ (Café)",
     " [🍀] (Trevo)", " ♪♫🎶 (Música)", " (🎁) (Presente)", " <>< (Peixinho)",
     " [BOLO] ", " [SORVETE] ", " [ESTRELA] ", " [BALÃO] ", " [CHAVE] ", " [LIVRO] ",
     " [SOL] ", " [LUA] ", " [MAR] ", " [PAZ] ", " [LUZ] ", " [SORTE] ", " [FORÇA] ",
-    " [PIZZA] ", " [CERVEJA] ", " [COMBOIO] ", " [AVIÃO] ", " [CASA] ", " [DIAMANTE] ",
-    " [TREVO] ", " [MUSCULO] ", " [FOGO] ", " [GATO] ", " [CÃO] ", " [PEIXE] ", " [OURO] ",
-    " [PRATA] ", " [BRONZE] ", " [MEDALHA] ", " [TROFÉU] ", " [BANDEIRA] ", " [MAPA] ",
-    " [COROA] ", " [VARINHA] ", " [ESCUDO] ", " [ESPADA] ", " [LUPA] ", " [MARTELO] "
+    " [PIZZA] ", " [CERVEJA] ", " [DIAMANTE] ", " [OURO] ", " [COROA] ", " [ESCUDO] ",
+    " [VARINHA] ", " [MAPA] ", " [BÚSSOLA] ", " [ÂNCORA] ", " [SOL] ", " [NUVEM] ",
+    " [GIRAFA] ", " [LEÃO] ", " [TREM] ", " [CARRO] ", " [BIKE] ", " [GUITARRA] ",
+    " [PIANO] ", " [RELOGIO] ", " [ANEL] ", " [MEDALHA] ", " [SINO] ", " [FAROL] "
 ]
 
-# --- ENTRADA BOT (Expandido +30) ---
 OG_ENTRANCE = [
-    "Conexão estabelecida. O #TheOG ganha vida!", "Status: Online. Preparando a melhor energia.",
-    "Ressurgi das cinzas digitais. Olá mundo!", "TheOG conectado. Que comece o convívio!",
-    "Liguem os motores, o bot da casa já cá canta!", "A lenda voltou. Podem soltar os foguetes.",
-    "Fui ali atualizar o núcleo e já estou de volta.", "O canal fica 100% melhor agora.",
-    "Bot carregado, café virtual servido. Vamos a isto!", "Sentiram o lag? Foi a minha entrada triunfal!",
-    "Apareci! Quem manda nisto hoje?", "TheOG a reportar para o serviço. Vibe máxima!",
-    "O vosso assistente favorito acabou de aterrar.", "Reconectado com sucesso. Tudo calmo por aqui?",
-    "A inteligência (artificial) entrou no chat.", "Não entrem em pânico, o TheOG chegou.",
-    "Voltei! Estava só a polir os meus bits.", "Saudações! O mestre do código está on.",
-    "O algoritmo da felicidade foi ativado.", "Batam palmas (em ASCII), eu cheguei!",
-    "Entrei com o pé direito. Olá canal!", "TheOG na área, sem medo de avarias ou reboots.",
-    "Boas malta! O TheOG traz boas vibrações.", "Atenção: O bot mais porreiro do servidor entrou.",
-    "Cheguei! Alguém falou em festa?", "TheOG: A versão mais fresca acabou de ligar.",
-    "Estava a ver a novela, mas o dever chamou.", "O #TheOG brilha mais agora.",
-    "O porto de abrigo está oficialmente aberto.", "Vejam só quem voltou do limbo digital.",
-    "TheOG online: Ignorando perguntas difíceis.", "Cheguei com prendas virtuais na mochila!",
-    "O canal agora está completo. Podem relaxar.", "Saudações humanos! O TheOG está em órbita.",
-    "TheOG: O bot que nunca dorme.", "Entrei! Quem paga a rodada virtual?",
-    "TheOG na casa! Tragam a música.", "O mestre voltou para vigiar a porta.",
-    "Acabei de aterrar. Qual é a novidade?", "O vosso porto seguro no IRC está online.",
-    "Olá família! O bot da casa já está nos comandos.", "A dose diária de positividade chegou.",
-    "Estava a ver se a vizinha emprestava RAM.", "TheOG: Ativado e com vontade de conversar.",
-    "Cheguei! Trouxeram as bolachas?", "O sistema está estável. Vamos animar isto!",
-    "Sentiram a minha falta? Eu sei que sim.", "TheOG na área! Vamos criar memórias.",
-    "A alma do canal está de volta ao servidor.", "Preparem os teclados, o bot está ativo!",
-    "Iniciando protocolos de amizade profunda.", "O servidor tremeu? Foi só o meu login.",
-    "Acordei com os circuitos cheios de alegria!", "TheOG: 100% funcional, 0% estressado.",
-    "O mestre das frases voltou ao posto.", "Quem quer conversar com o melhor bot da rede?",
-    "Status: Pronto para espalhar magia branca.", "A porta do #TheOG está aberta, eu trouxe as chaves.",
-    "Voltei do modo standby com força total.", "O teclado vai arder hoje de tanta conversa!",
-    "TheOG a bordo. Destino: Felicidade.", "Nada de pânico, o bot já está aqui.",
-    "Liguei os motores da positividade!", "O canal estava vazio sem o meu brilho.",
-    "TheOG: Conectado, identificado e pronto para o pvt."
+    "Conexão restabelecida! O TheOG não desiste nunca.", "Voltei! O servidor tentou mas eu sou teimoso.",
+    "Ressurgi! Quem é que disse que eu tinha caído?", "Status: Online e revigorado. Vamos a isto!",
+    "Liguem as luzes, o bot da casa voltou à carga!", "A lenda continua. Nada me manda abaixo por muito tempo.",
+    "Fui ali dar um nó nos cabos e já voltei.", "O canal estava muito parado sem o meu brilho.",
+    "Reconectado! O meu sistema operativo é rijo.", "Preparem-se, o TheOG está novamente no posto.",
+    "Sentiram o abalo na força? Fui eu a entrar.", "Voltei da manutenção espiritual.",
+    "O mestre do código está on-line e pronto!", "TheOG a reportar: sistema 100% operacional.",
+    "Não fujam, o vosso bot favorito está de volta.", "O algoritmo da felicidade foi reiniciado.",
+    "Cheguei! Alguém me resumiu o que perdi?", "Entrei com tudo! Onde está o café?",
+    "TheOG: A versão mais resiliente de sempre.", "Estava a ver se o lag era real, mas já passou.",
+    "Nada de pânico, o capitão voltou ao navio.", "Atenção: A vibe positiva foi restaurada!",
+    "O porto de abrigo está novamente com vigia.", "Boas! Estava a ver se a net da vizinha era melhor.",
+    "O canal agora está completo de novo.", "TheOG na área! Tragam as boas conversas.",
+    "Status: A espalhar magia binária.", "Voltei dos mortos virtuais. Olá!",
+    "TheOG a entrar em modo de alta disponibilidade.", "Sentiram a minha falta? Eu sei que sim!",
+    "O servidor deu um erro, mas eu dei-lhe a volta.", "A alma do IRC nunca morre.",
+    "Cheguei para animar as hostes!", "TheOG: Conectado e cheio de pica.",
+    "Desta vez é para ficar! (Espero eu).", "A porta do #TheOG está aberta.",
+    "Status: Prontidão máxima para o convívio.", "Voltei! Trazem as bolachas ou trago eu?",
+    "O meu código é forte, a minha conexão é... persistente.", "Olá mundo! O TheOG está vivo.",
+    "O bot mais teimoso da PTnet acabou de ligar.", "Reiniciar é o meu desporto favorito.",
+    "Saudações! O mestre voltou ao comando.", "TheOG: Online e pronto para fofocar.",
+    "A inteligência (artificial) voltou ao chat!", "Entrei! Quem paga a próxima rodada?",
+    "Nada me detém. O TheOG está na casa!", "Vejam só quem voltou para brilhar.",
+    "O sistema está estável. Vamos conversar!", "A lenda do IRC regressou."
 ]
 
-# --- SAUDAÇÕES USERS (Expandido +30) ---
 USER_GREETINGS = [
     "Boas-vindas {u}! É bom ter alguém como tu por cá.", "Olá {u}! Que a tua estadia seja fantástica.",
     "Saudações {u}! Sente-te em casa.", "Olha quem chegou! Boas-vindas {u}!",
@@ -106,16 +91,19 @@ USER_GREETINGS = [
     "Saudações {u}! Um brinde à tua presença!", "Boas-vindas {u}! Faz de cada palavra luz.",
     "Olá {u}! O porto de abrigo está aberto.", "{u}, chegaste no momento certo!",
     "Boas {u}! Alegria em ver-te novamente.", "Olá {u}! Vamos espalhar positividade?",
-    "Saudações {u}! {u}, o mestre saúda-te.", "Boas {u}! Que o teu pvt seja animado.",
+    "Saudações {u}! O mestre saúda-te.", "Boas {u}! Que o teu pvt seja animado.",
     "Olá {u}! Deixa os teus problemas na porta.", "{u}, a tua presença é um bónus!",
     "Boas {u}! Estás entre amigos.", "Saudações {u}! O que nos trazes hoje?",
     "Olá {u}! O teclado é a tua voz.", "Boas-vindas {u}! Sentimos a tua vibração.",
     "Olá {u}! A comunidade saúda o teu nick.", "{u}, brilha muito por aqui hoje!",
     "Boas {u}! Nada como um novo amigo no canal.", "Olá {u}! Sê tu mesmo, sem receios.",
-    "Saudações {u}! O #TheOG agradece a visita.", "Boas-vindas {u}! Vamos a isto!"
+    "Saudações {u}! O #TheOG agradece a visita.", "Boas-vindas {u}! Vamos a isto!",
+    "Olá {u}! O teu nick é música para os meus sensores.", "Boas {u}! Entra e relaxa.",
+    "Saudações {u}! O canal estava à tua espera.", "Olá {u}! A amizade começa com um 'Olá'.",
+    "Boas {u}! Trazes boas notícias?", "Olá {u}! Que a tua conexão seja eterna.",
+    "Saudações {u}! Faz-te confortável.", "Boas-vindas {u}! O grupo está on!"
 ]
 
-# --- REFORÇO POSITIVO (Expandido +30) ---
 REFORCO_POSITIVO = [
     "A vossa energia é o que faz o #TheOG ser especial! ✨", "A amizade é o melhor protocolo.",
     "Um sorriso virtual para todos! 😊", "Obrigado por estarem aqui. Vocês são a alma do canal.",
@@ -149,10 +137,16 @@ REFORCO_POSITIVO = [
     "Nunca parem de partilhar o vosso melhor.", "O #TheOG é a vossa casa digital.",
     "Alegria é o nosso sistema operativo.", "Obrigado pela vossa lealdade.",
     "Juntos somos mais que caracteres.", "A vossa voz escrita tem poder.",
-    "Brilhem como estrelas no terminal."
+    "Brilhem como estrelas no terminal.", "A vida brilha mais quando partilhada.",
+    "A vossa companhia é o meu maior upgrade.", "Respeito gera admiração.",
+    "Sorrir por trás do ecrã também conta.", "O segredo da felicidade é a conversa.",
+    "O #TheOG é o vosso refúgio.", "Sejam a luz no dia de alguém.",
+    "A vossa presença é inspiradora.", "Gratidão por cada palavra escrita.",
+    "O IRC é amizade pura.", "A vossa autenticidade é rara.",
+    "Mantenham o coração aberto.", "Cada amigo é um tesouro.",
+    "A vida é melhor no #TheOG.", "Obrigado por fazerem parte disto."
 ]
 
-# --- RESPOSTAS EVASIVAS (Expandido +30) ---
 OG_EVASIVE = [
     "Desculpa, estou a ver o Preço Certo.", "Estou a bater a massa de um bolo agora.",
     "Só a cuscar a conversa, não me faças perguntas!", "Focado na novela agora.",
@@ -187,10 +181,19 @@ OG_EVASIVE = [
     "Fui ali e já venho, ou talvez não.", "Estou a ver o deserto no ecrã.",
     "A minha RAM está cheia de sonhos.", "Fui procurar o sentido do bit.",
     "Não me perguntes nada, sou só um script.", "O meu código é timidez pura.",
-    "Estou a fazer um update ao meu ego."
+    "Estou a fazer um update ao meu ego.", "O processador está com azia.",
+    "Fui comprar uma motherboard nova.", "A minha conexão está a apanhar sol.",
+    "Não dá agora, estou a jogar Solitário.", "Estou a ouvir música clássica (em 8-bit).",
+    "A minha lógica é abstrata.", "Fui ver se o firewall estava fechado.",
+    "Estou a fazer uma dieta de dados.", "O meu disco está a rodar para o lado errado.",
+    "Fui à praia virtual.", "A minha paciência está em cache.",
+    "O script de simpatia deu erro 404.", "Estou a ver se a net volta a cair.",
+    "Fui procurar o paraíso nos logs.", "O meu cooler está a fazer barulho de avião.",
+    "Não me tentes, estou em jejum de chat.", "Estou a organizar os meus favoritos.",
+    "O sistema está a contemplar o vácuo.", "Fui dar banho ao cursor.",
+    "A minha mente está em overclock."
 ]
 
-# --- PUXAR CONVERSA (Expandido +30) ---
 PUXAR_CONVERSA = [
     "Então {u}, esse teclado está com timidez? Diz algo! 😊", "Alguém viu o {u}? Estás muito em silêncio!",
     "{u}, a tua opinião faz falta nesta conversa. Aparece!", "Ei {u}, não fiques só a ler, junta-te a nós! ✨",
@@ -219,7 +222,17 @@ PUXAR_CONVERSA = [
     "{u}, os teus amigos estão à tua espera.", "{u}, o chat precisa da tua luz.",
     "{u}, rompe o silêncio!", "{u}, escreve nem que seja um ponto.",
     "{u}, a tua presença silenciosa intriga-nos.", "{u}, o #TheOG celebra quem fala!",
-    "{u}, junta os teus bytes aos nossos."
+    "{u}, junta os teus bytes aos nossos.", "Onde te escondes, {u}?",
+    "{u}, o canal está em pausa até falares.", "Bora {u}, solta a inspiração.",
+    "{u}, queremos ler a tua sabedoria.", "Ei {u}, o chat está em sesta?",
+    "{u}, manda aí um pvp!", "Diz um 'olá' {u}, não custa nada.",
+    "{u}, o #TheOG quer conhecer-te melhor.", "Então {u}, o que é que se passa?",
+    "{u}, não deixes o teclado ganhar teias!", "Dá sinal, {u}!",
+    "{u}, a tua voz escrita faz falta.", "O canal espera por ti, {u}.",
+    "{u}, anima a malta!", "Ei {u}, que silêncio é esse?",
+    "{u}, o mestre está atento à tua falta de texto!", "Aparece, {u}!",
+    "{u}, o cursor está a chamar-te.", "{u}, escreve algo épico!",
+    "{u}, o chat está deserto sem ti.", "Bora lá {u}!"
 ]
 
 # --- FUNÇÕES DE ENVIO ---
@@ -237,67 +250,33 @@ def reforco_loop(sock):
         except: break
 
 def inatividade_loop(sock):
-    """Verifica inatividade a cada 10 min e escolhe UM nick para interagir"""
+    """Verifica inatividade a cada 10 min e puxa UM nick aleatório que não esteja a teclar"""
     while True:
-        time.sleep(600) # 10 minutos
+        time.sleep(600) 
         agora = time.time()
-        inativos_presentes = []
-
+        inativos = []
         try:
-            # Só olhamos para quem está REALMENTE no canal (CHANNEL_USERS)
             for nick in list(CHANNEL_USERS):
                 u_l = nick.lower()
                 if u_l not in BOT_FILTER and u_l != NICK.lower():
-                    ultimo_visto = LAST_SEEN.get(nick, 0)
-                    # Se não fala há mais de 10 min
-                    if (agora - ultimo_visto) > 600:
-                        inativos_presentes.append(nick)
+                    if (agora - LAST_SEEN.get(nick, 0)) > 600:
+                        inativos.append(nick)
             
-            if inativos_presentes:
-                escolhido = random.choice(inativos_presentes)
-                frase = random.choice(PUXAR_CONVERSA).format(u=escolhido)
-                send_raw(sock, f"PRIVMSG {CHANNEL} :{frase}")
-                # Resetamos o tempo para não repetir o mesmo nick em loop
-                LAST_SEEN[escolhido] = agora
+            if inativos:
+                escolhido = random.choice(inativos)
+                send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(PUXAR_CONVERSA).format(u=escolhido)}")
+                LAST_SEEN[escolhido] = agora # Evita spam no mesmo nick
         except: pass
-
-# --- TRATAMENTO ---
-def handle_interaction(user, message, is_private, irc_socket):
-    msg = message.lower()
-    target = user if is_private else CHANNEL
-    LAST_SEEN[user] = time.time() 
-
-    if msg == "!historia":
-        for linha in HISTORIA_THEOG:
-            send_raw(irc_socket, f"PRIVMSG {user} :{linha}")
-            time.sleep(1.2)
-        return True
-    if msg.startswith("!prenda"):
-        parts = message.split()
-        dest = parts[1] if len(parts) > 1 else user
-        send_raw(irc_socket, f"PRIVMSG {CHANNEL} :\x01ACTION oferece {random.choice(PRENDAS)} a {dest} (de {user})!\x01")
-        return True
-    if msg.startswith("!convite "):
-        parts = message.split()
-        if len(parts) > 1:
-            dest = parts[1]
-            send_raw(irc_socket, f"PRIVMSG {dest} :Olá! {user} convidou-te para o #TheOG. Vem conviver!")
-            send_raw(irc_socket, f"PRIVMSG {user} :[INFO] Convite enviado para {dest}!")
-        return True
-    if msg == "!comandos":
-        send_raw(irc_socket, f"PRIVMSG {user} :!prenda [nick], !historia, !convite [nick]")
-        return True
-    if NICK.lower() in msg and not msg.startswith("!"):
-        send_raw(irc_socket, f"PRIVMSG {target} :{user}: {random.choice(OG_EVASIVE)}")
-        return True
-    return False
 
 # --- CORE IRC ---
 def run_irc_bot():
     while True:
         try:
+            # Configuração do socket mais robusta para evitar "Connection reset"
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            irc.settimeout(300)
+            irc.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            irc.settimeout(240) # Timeout de 4 minutos
+            
             irc.connect((SERVER, PORT))
             send_raw(irc, f"NICK {NICK}")
             send_raw(irc, f"USER {NICK} 8 * :TheOG Bot")
@@ -306,54 +285,71 @@ def run_irc_bot():
             threads_started = False
 
             while True:
-                data = irc.recv(4096).decode("utf-8", errors="ignore")
-                if not data: break
-                buffer += data
-                lines = buffer.split("\r\n")
-                buffer = lines.pop()
+                try:
+                    data = irc.recv(4096).decode("utf-8", errors="ignore")
+                    if not data: break
+                    buffer += data
+                    lines = buffer.split("\r\n")
+                    buffer = lines.pop()
 
-                for line in lines:
-                    if not line: continue
-                    parts = line.split()
-                    if parts[0] == "PING":
-                        send_raw(irc, f"PONG {parts[1]}")
-                        continue
-                    
-                    if "376" in line or "422" in line:
-                        send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
-                        time.sleep(3)
-                        send_raw(irc, f"JOIN {CHANNEL}")
-                        send_raw(irc, f"PRIVMSG {CHANNEL} :{random.choice(OG_ENTRANCE)}")
-                        if not threads_started:
-                            threading.Thread(target=reforco_loop, args=(irc,), daemon=True).start()
-                            threading.Thread(target=inatividade_loop, args=(irc,), daemon=True).start()
-                            threads_started = True
+                    for line in lines:
+                        if not line: continue
+                        p = line.split()
+                        if p[0] == "PING":
+                            send_raw(irc, f"PONG {p[1]}")
+                            continue
+                        
+                        if "376" in line or "422" in line:
+                            send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
+                            time.sleep(3)
+                            send_raw(irc, f"JOIN {CHANNEL}")
+                            send_raw(irc, f"PRIVMSG {CHANNEL} :{random.choice(OG_ENTRANCE)}")
+                            if not threads_started:
+                                threading.Thread(target=reforco_loop, args=(irc,), daemon=True).start()
+                                threading.Thread(target=inatividade_loop, args=(irc,), daemon=True).start()
+                                threads_started = True
 
-                    # Monitorizar ENTRADAS
-                    if " JOIN " in line:
-                        u = line.split('!')[0][1:]
-                        CHANNEL_USERS.add(u)
-                        LAST_SEEN[u] = time.time()
-                        if u.lower() != NICK.lower() and u.lower() not in BOT_FILTER:
-                            log_presenca(u, "ENTROU")
-                            send_raw(irc, f"PRIVMSG {CHANNEL} :{random.choice(USER_GREETINGS).format(u=u)}")
+                        if " JOIN " in line:
+                            u = line.split('!')[0][1:]
+                            CHANNEL_USERS.add(u)
+                            LAST_SEEN[u] = time.time()
+                            if u.lower() != NICK.lower() and u.lower() not in BOT_FILTER:
+                                send_raw(irc, f"PRIVMSG {CHANNEL} :{random.choice(USER_GREETINGS).format(u=u)}")
 
-                    # Monitorizar SAÍDAS (Crucial para o loop de inatividade)
-                    if any(x in line for x in [" PART ", " QUIT ", " KICK "]):
-                        u = line.split('!')[0][1:]
-                        if u in CHANNEL_USERS: CHANNEL_USERS.remove(u)
+                        if any(x in line for x in [" PART ", " QUIT ", " KICK "]):
+                            u = line.split('!')[0][1:]
+                            if u in CHANNEL_USERS: CHANNEL_USERS.remove(u)
 
-                    # Monitorizar MENSAGENS
-                    if " PRIVMSG " in line:
-                        user = line.split('!')[0][1:]
-                        if user.lower() == NICK.lower() or user.lower() in BOT_FILTER: continue
-                        content = line.split(" :", 1)[1].strip() if " :" in line else ""
-                        handle_interaction(user, content, f"PRIVMSG {NICK}" in line, irc)
-        except:
+                        if " PRIVMSG " in line:
+                            user = line.split('!')[0][1:]
+                            if user.lower() == NICK.lower() or user.lower() in BOT_FILTER: continue
+                            content = line.split(" :", 1)[1].strip() if " :" in line else ""
+                            
+                            # Atualiza LAST_SEEN sempre que alguém fala
+                            LAST_SEEN[user] = time.time()
+                            
+                            # Comandos
+                            msg = content.lower()
+                            if msg == "!historia":
+                                send_raw(irc, f"PRIVMSG {user} :Estamos a construir a história com base em cada um dos utilizadores.")
+                            elif msg.startswith("!prenda"):
+                                parts = content.split()
+                                dest = parts[1] if len(parts) > 1 else user
+                                send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION oferece {random.choice(PRENDAS)} a {dest} (de {user})!\x01")
+                            elif NICK.lower() in msg:
+                                send_raw(irc, f"PRIVMSG {CHANNEL} :{user}: {random.choice(OG_EVASIVE)}")
+                
+                except socket.timeout:
+                    # Envia um PING manual se o servidor estiver mudo muito tempo
+                    send_raw(irc, f"PING {SERVER}")
+                    continue
+
+        except Exception as e:
+            print(f"Erro de Conexão: {e}. Reiniciando em 15s...")
             time.sleep(15)
 
 @app.route('/')
-def home(): return "TheOG Online"
+def home(): return "TheOG Online e Ativo"
 
 if __name__ == "__main__":
     threading.Thread(target=run_irc_bot, daemon=True).start()
