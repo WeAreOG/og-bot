@@ -348,19 +348,27 @@ def handle_interaction(user, message, is_private, irc_socket):
 
     if msg.startswith("!"):
         if msg == "!historia":
+            # Se for pedido no canal, avisa que mandou por PVT
+            if not is_private:
+                send_raw(irc_socket, f"PRIVMSG {CHANNEL} :{user}, fui de fininho entregar-te a história em PVT! 📩")
+            
+            # Envia sempre a história diretamente para o user em PVT
             for linha in HISTORIA_THEOG:
-                send_raw(irc_socket, f"PRIVMSG {target} :{linha}")
+                send_raw(irc_socket, f"PRIVMSG {user} :{linha}")
                 time.sleep(1.8)
             return True
+            
         if msg.startswith("!pergunta"):
             q = message[10:].strip()
             if q:
                 threading.Thread(target=lambda: send_raw(irc_socket, f"PRIVMSG {target} :{user}: {ask_hugging_face(q)[:400]}")).start()
             return True
+            
         if msg.startswith("!lapada"):
             dest = message.split()[1] if len(message.split()) > 1 else user
             send_raw(irc_socket, f"PRIVMSG {CHANNEL} :\x01ACTION {random.choice(LAPADAS).format(u=dest)} (por {user})\x01")
             return True
+            
         if msg.startswith("!prenda"):
             dest = message.split()[1] if len(message.split()) > 1 else user
             send_raw(irc_socket, f"PRIVMSG {CHANNEL} :\x01ACTION {random.choice(PRENDAS).format(u=dest)} (cortesia de {user})\x01")
@@ -410,7 +418,7 @@ def run_irc_bot():
         except: time.sleep(15)
 
 @app.route('/')
-def home(): return "TheOG Online - Versão Definitiva, Sem Cortes e Sem Misérias!"
+def home(): return "TheOG Online - História em PVT, Listas Completas e Sem Cortes!"
 
 if __name__ == "__main__":
     threading.Thread(target=run_irc_bot, daemon=True).start()
