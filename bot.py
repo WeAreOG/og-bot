@@ -3,6 +3,7 @@ import time
 import threading
 import os
 import random
+import requests
 from datetime import datetime
 from flask import Flask
 
@@ -13,6 +14,10 @@ NICK = "TheOG"
 PASS = "Nasomet112#" 
 CHANNEL = "#TheOG"
 BOT_FILTER = ["nickserv", "chanserv", "memoserv", "operserv", "adamastor", "statserv", "secure", "authserv", "irc", "theog", "bot"]
+
+# --- CONFIGURAÇÃO HUGGING FACE ---
+HF_TOKEN = "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" 
+API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
 
 app = Flask(__name__)
 LAST_SEEN = {}       
@@ -76,17 +81,41 @@ LAPADAS = [
     "manda {u} para o quinto dos infernos!", "atira um tijolo de Santa Catarina a {u}!"
 ]
 
-# --- ENTRADAS, SAUDAÇÕES, REFORÇOS E EVASIVAS ---
-OG_ENTRANCE = ["Conexão estabelecida. O #TheOG ganha vida!", "Status: Online. Preparando a melhor energia.", "A lenda voltou. Podem soltar os foguetes."]
+# --- ENTRADAS E MENSAGENS ---
+OG_ENTRANCE = ["Conexão estabelecida. O #TheOG ganha vida!", "Status: Online. Preparando a melhor energia."]
 USER_GREETINGS = ["Boas-vindas {u}! É bom ter alguém como tu por cá.", "Olá {u}! Estás em casa, no #TheOG."]
 REFORCO_POSITIVO = ["A vossa energia é o que faz o #TheOG ser especial! ✨", "Um sorriso virtual para todos! 😊"]
-OG_EVASIVE = ["Desculpa, estou a ver o Preço Certo.", "Estou a bater a massa de um bolo agora.", "Focado na novela agora."]
+OG_EVASIVE = ["Desculpa, estou a ver o Preço Certo.", "Estou a bater a massa de um bolo agora."]
 PUXAR_CONVERSA = ["Então {u}, esse teclado está com timidez? Diz algo! 😊", "{u}, manda aí um sinal de vida!"]
 
 def send_raw(sock, msg):
     try:
         sock.send(f"{msg}\r\n".encode('utf-8'))
     except: pass
+
+# --- FUNÇÃO IA HUGGING FACE ---
+def ask_hugging_face(question):
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    # Contexto para a IA saber quem é
+    prompt = f"<s>[INST] Tu és o bot do canal #TheOG no IRC. Responde de forma curta, castiça e em português de Portugal à seguinte questão: {question} [/INST]</s>"
+    
+    payload = {
+        "inputs": prompt,
+        "parameters": {"max_new_tokens": 150, "temperature": 0.7, "top_p": 0.9}
+    }
+    try:
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=20)
+        if response.status_code == 200:
+            result = response.json()
+            res = result[0]['generated_text']
+            if "[/INST]" in res:
+                res = res.split("[/INST]")[-1].strip()
+            return res
+        elif response.status_code == 503:
+            return "Estou a carregar as baterias (modelo a iniciar)... tenta de novo em 20 segundos!"
+        return f"Tive um precalço técnico (Erro {response.status_code})."
+    except:
+        return "A ligação à central falhou. Tenta outra vez!"
 
 def reforco_loop(sock):
     while True:
@@ -109,10 +138,9 @@ def handle_interaction(user, message, is_private, irc_socket):
     target = user if is_private else CHANNEL
     LAST_SEEN[user] = time.time()
 
-    # PRIORIDADE: Comandos começados por !
     if msg.startswith("!"):
         if msg == "!comandos":
-            send_raw(irc_socket, f"PRIVMSG {user} :Comandos disponíveis: !prenda [nick], !lapada [nick], !historia, !convite [nick]")
+            send_raw(irc_socket, f"PRIVMSG {user} :Comandos: !prenda [nick], !lapada [nick], !historia, !convite [nick], !pergunta [texto]")
             return True
         
         if msg == "!historia":
@@ -134,15 +162,25 @@ def handle_interaction(user, message, is_private, irc_socket):
             send_raw(irc_socket, f"PRIVMSG {CHANNEL} :\x01ACTION {frase} (aplicada por {user})\x01")
             return True
 
+        if msg.startswith("!pergunta"):
+            question = message[10:].strip()
+            if not question:
+                send_raw(irc_socket, f"PRIVMSG {target} :{user}, o que queres saber?")
+            else:
+                def async_ia():
+                    resposta = ask_hugging_face(question)
+                    # Envia a resposta dividida se for muito longa (limite IRC)
+                    send_raw(irc_socket, f"PRIVMSG {target} :{user}: {resposta[:400]}")
+                threading.Thread(target=async_ia).start()
+            return True
+
         if msg.startswith("!convite"):
             parts = message.split()
             if len(parts) > 1:
                 dest = parts[1]
-                send_raw(irc_socket, f"PRIVMSG {dest} :Olá! {user} convidou-te para o #TheOG. Vem conviver!")
-                send_raw(irc_socket, f"PRIVMSG {user} :[INFO] Convite enviado para {dest}!")
+                send_raw(irc_socket, f"PRIVMSG {dest} :Olá! {user} convidou-te para o #TheOG. Aparece!")
             return True
     
-    # Menção ao nick do bot (não comando)
     if NICK.lower() in msg:
         send_raw(irc_socket, f"PRIVMSG {target} :{user}: {random.choice(OG_EVASIVE)}")
         return True
@@ -153,7 +191,7 @@ def run_irc_bot():
     while True:
         try:
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            irc.settimeout(240) # Timeout para evitar sockets mortos
+            irc.settimeout(240)
             irc.connect((SERVER, PORT))
             send_raw(irc, f"NICK {NICK}")
             send_raw(irc, f"USER {NICK} 8 * :TheOG Bot")
@@ -181,7 +219,6 @@ def run_irc_bot():
                         send_raw(irc, f"PONG {parts[1]}")
                         continue
                     
-                    # Conectado com sucesso
                     if "376" in line or "422" in line:
                         send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         time.sleep(2)
@@ -210,11 +247,11 @@ def run_irc_bot():
                         content = line.split(" :", 1)[1].strip() if " :" in line else ""
                         handle_interaction(user, content, f"PRIVMSG {NICK}" in line, irc)
         except Exception as e:
-            print(f"Erro de conexão: {e}. Reiniciando em 15s...")
+            print(f"Erro: {e}. Reiniciando em 15s...")
             time.sleep(15)
 
 @app.route('/')
-def home(): return "TheOG Online"
+def home(): return "TheOG Online com IA"
 
 if __name__ == "__main__":
     threading.Thread(target=run_irc_bot, daemon=True).start()
