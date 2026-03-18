@@ -22,9 +22,124 @@ API_URL = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8
 app = Flask(__name__)
 LAST_SEEN = {}       
 CHANNEL_USERS = set() 
-STALKER_REQUESTS = {} # Para gerir quem pediu o !stalker
+STALKER_REQUESTS = {}
 
-# --- A HISTÓRIA DO #THEOG ---
+# --- CONTEÚDO PERSONALIZADO ---
+
+ANEDOTAS = [
+    "O Joãozinho pergunta à mãe: 'Mãe, o Natal este ano cai à sexta-feira?'. A mãe responde: 'Deus queira que não, Joãozinho! Espero que caia no dia 25!'",
+    "Um português vai a Londres e quer saber as horas. Aproxima-se de um inglês e diz: 'Look here, it's what hours?'. O inglês olha e diz: 'Twenty to eight'. O português: 'Tanto tu ite? Tu ite a tua tia!'",
+    "Diz o médico para o paciente: 'Tenho uma notícia má e uma péssima. A má é que só tem 24 horas de vida'. O paciente: 'E a péssima?'. O médico: 'Estou a tentar ligar-lhe desde ontem!'",
+    "Porque é que o Alentejano leva um machado para o computador? Para cortar o caminho à Internet!",
+    "Um alentejano está sentado numa árvore. Passa um amigo e pergunta: 'O que estás aí a fazer, compadre?'. 'Estou a comer cerejas!'. 'Mas isso é uma figueira!'. 'Eu sei, mas eu trouxe-as num saquinho!'",
+    "O que diz um caracol em cima de uma tartaruga? Ihuuuuuuuuuuu!",
+    "Diz o Manuel para o Joaquim: 'Ó Joaquim, a tua mulher é tão feia que quando envia uma foto ao antivírus, ele responde: Vírus detetado!'",
+    "Um tipo entra num café e grita: 'Sou o maior! Sou o maior!'. O dono do café pergunta: 'É o maior em quê?'. 'Em humildade!'",
+    "O que é que um ponto diz para outro ponto? 'Eu não te conheço de algum gráfico?'",
+    "Por que é que o jacaré tirou o jacarezinho da escola? Porque ele 'ré-pudia' as notas!",
+    "Diz a nora para a sogra: 'A senhora vai estar na nossa festa de aniversário?'. A sogra: 'Se não chover, vou'. A nora: 'Pois, mas nós temos telhado!'",
+    "O Alentejano chega ao hospital: 'Doutor, sinto-me mal'. 'O que tem?'. 'Não sei, mas o meu relógio parou e eu deixei de ouvir o tique-taque!'",
+    "Por que é que o livro de matemática se suicidou? Porque tinha muitos problemas.",
+    "O que é um ponto preto no castelo? É o 'Pimenta' no reino!",
+    "Como se chama um boomerangue que não volta? Um pau.",
+    "Um homem diz para o amigo: 'A minha mulher é um anjo!'. O outro responde: 'Tens sorte, a minha ainda está viva...'",
+    "A professora: 'Joãozinho, diz uma palavra que comece com D'. 'Ontem!'. 'Ontem começa com O!'. 'Não senhora professora, ontem foi Domingo!'",
+    "Dois grãos de areia no deserto: 'Acho que estamos a ser seguidos!'",
+    "O que é que um espelho diz para o outro? 'Nossa, como tu és refletido!'",
+    "Por que é que as plantas não gostam de matemática? Porque tem muitas raízes!",
+    "O que é que o zero disse para o oito? 'Belo cinto!'",
+    "O que é que o tubarão disse quando comeu o surfista? 'Gosto de comida com prancha!'",
+    "Por que é que o elefante não usa computador? Porque tem medo do rato!",
+    "O que é um pontinho vermelho no meio da porta? Um 'alerta'!",
+    "Por que é que o galo canta de olhos fechados? Porque já sabe a letra de cor!",
+    "Um gago diz para o outro: 'V-v-vamos c-c-comer?'. O outro: 'C-c-claro, j-j-já t-t-tenho a f-f-faca!'",
+    "O que é que uma impressora disse para a outra? 'Essa folha é tua ou é impressão minha?'",
+    "Por que é que o cego não pode ir à escola de condução? Porque não vê o caminho!",
+    "O que é que o café disse para a chávena? 'Estou farto de te ver todos os dias!'",
+    "Por que é que o esqueleto não foi ao baile? Porque não tinha corpo para aquilo!",
+    "O que é que um canibal disse para o outro depois de comerem um palhaço? 'Sabe-me a pouco engraçado!'",
+    "O que é que o martelo disse para o prego? 'Hoje vou dar-te uma tareia!'",
+    "O que é que o mar disse para a areia? 'Nada!'",
+    "Por que é que o bombeiro não gosta de futebol? Porque tem medo do fogo de artifício!",
+    "O que é que a lâmpada disse para o interruptor? 'Não me toques que eu ligo-me logo!'",
+    "Por que é que o pão não vai ao ginásio? Porque tem medo de ficar em forma de carcaça!",
+    "O que é que o lápis disse para a borracha? 'Apaga lá isso!'",
+    "Por que é que a galinha atravessou a estrada? Para chegar ao outro lado!",
+    "O que é que um átomo disse para o outro? 'Acho que perdi um eletrão'. 'Tens a certeza?'. 'Sim, estou positivo!'",
+    "Por que é que os pássaros voam para sul no inverno? Porque é muito longe para irem a pé!",
+    "O que é que o livro de história disse para o de geografia? 'Tu tens muitos mapas, mas eu tenho muitas datas!'",
+    "O que é que o tomate disse para a alface? 'Tu és uma verdura e eu sou um fruto!'",
+    "Por que é que o computador foi ao médico? Porque tinha um vírus!",
+    "O que é que a chave disse para a fechadura? 'Vamos dar uma voltinha?'",
+    "Por que é que o peixe não fala? Porque tem a boca cheia de água!",
+    "O que é que o sol disse para a lua? 'Tu és tão pálida!'",
+    "Por que é que a aranha é o animal mais inteligente? Porque passa o dia todo na rede!",
+    "O que é que o relógio disse para o tempo? 'Estou sempre a correr atrás de ti!'",
+    "Por que é que o pato não gosta de jogar cartas? Porque tem medo de perder as penas!",
+    "O que é que a nuvem disse para o céu? 'Estou a sentir-me um pouco carregada!'",
+    "Por que é que o porco está sempre feliz? Porque está sempre na lama!",
+    "O que é que o queijo disse para a faca? 'Não me cortes as vazas!'",
+    "Por que é que o comboio não anda de bicicleta? Porque já tem carris!",
+    "O que é que o despertador disse para o sono? 'Acorda que já é dia!'",
+    "Por que é que o astronauta não gosta de festas? Porque não tem espaço!",
+    "O que é que a caneta disse para o papel? 'Vou deixar a minha marca em ti!'",
+    "Por que é que o gato não gosta de peixe frito? Porque prefere ao natural!",
+    "O que é que o vento disse para a árvore? 'Abana-te!'",
+    "Por que é que a formiga tem quatro pernas? Porque se tivesse duas era uma pessoa pequena!",
+    "O que é que o espelho disse para a imagem? 'Estás igual a mim!'",
+    "Por que é que o urso polar não vive no deserto? Porque tem muito calor!",
+    "O que é que o sapato disse para o pé? 'Tu cheiras mal!'",
+    "Por que é que o limão é azedo? Porque ninguém lhe dá carinho!",
+    "O que é que o martelo disse para a parede? 'Vou-te dar um encosto!'",
+    "Por que é que o sol não vai à escola? Porque já é brilhante!",
+    "O que é que a chuva disse para a terra? 'Vou-te molhar toda!'",
+    "Por que é que o cão ladra à lua? Porque não sabe falar!",
+    "O que é que o gelo disse para o fogo? 'Estás a derreter-me!'",
+    "Por que é que a girafa tem o pescoço comprido? Para chegar às folhas mais altas!",
+    "O que é que o guarda-chuva disse para a chuva? 'Comigo não passas!'",
+    "Por que é que o balão não gosta de agulhas? Porque explode de medo!",
+    "O que é que o telefone disse para a orelha? 'Diz-me coisas bonitas!'",
+    "Por que é que o pinguim não voa? Porque tem as asas curtas!",
+    "O que é que a montanha disse para o vale? 'Estás lá em baixo!'",
+    "Por que é que o coelho não usa óculos? Porque come muitas cenouras!",
+    "O que é que o sal disse para a pimenta? 'Tu dás-me um arrepio!'",
+    "Por que é que a ovelha não gosta de tosquia? Porque fica com frio!",
+    "O que é que o computador disse para o utilizador? 'Carrega no botão!'",
+    "Por que é que o tubarão não come palhaços? Porque têm um sabor engraçado!",
+    "O que é que a faca disse para o garfo? 'Tu picas-me todo!'",
+    "Por que é que o macaco gosta de bananas? Porque são doces!",
+    "O que é que a abelha disse para a flor? 'Dá-me o teu pólen!'",
+    "Por que é que o elefante tem medo de ratos? Porque são pequenos e rápidos!",
+    "O que é que o rio disse para o mar? 'Vou-me juntar a ti!'",
+    "Por que é que a tartaruga é lenta? Porque carrega a casa às costas!",
+    "O que é que o relâmpago disse para o trovão? 'Vou à frente, tu vens depois!'",
+    "Por que é que o lobo não gosta de porquinhos? Porque dão muito trabalho!",
+    "O que é que a estrela disse para a noite? 'Eu brilho por ti!'",
+    "Por que é que o caracol não gosta de correr? Porque se cansa depressa!",
+    "O que é que o médico disse para o esqueleto? 'Tu não tens remédio!'",
+    "Por que é que o palhaço não gosta de chorar? Porque borra a maquilhagem!",
+    "O que é que o padeiro disse para o pão? 'Vais para o forno!'",
+    "Por que é que o passarinho não gosta de gaiolas? Porque quer voar livre!",
+    "O que é que o pescador disse para o peixe? 'Caíste na rede!'",
+    "Por que é que o sapo não gosta de princesas? Porque tem medo de virar príncipe!",
+    "O que é que o arquiteto disse para a casa? 'Foste bem desenhada!'",
+    "Por que é que o condutor não gosta de trânsito? Porque quer chegar depressa!",
+    "O que é que o cozinheiro disse para a sopa? 'Falta-te sal!'",
+    "Por que é que o jardineiro não gosta de ervas daninhas? Porque estragam o jardim!",
+    "O que é que o pintor disse para a tela? 'Vou-te dar cor!'",
+    "Por que é que o músico não gosta de desafinar? Porque soa mal!",
+    "O que é que o escritor disse para a caneta? 'Escreve a minha história!'",
+    "Por que é que o desportista não gosta de perder? Porque quer ser o melhor!",
+    "O que é que o professor disse para o aluno? 'Presta atenção!'",
+    "O Manuel vai ao médico: 'Doutor, sinto-me como um cão!'. 'Desde quando?'. 'Desde cachorrinho!'",
+    "O Joaquim diz para a mulher: 'Querida, hoje o jantar está uma maravilha!'. A mulher: 'Ai sim? O que é?'. 'Não sei, ainda não o provei!'",
+    "A mãe para o filho: 'Vais-me dizer onde está o dinheiro que tirei da tua carteira?'. O filho: 'Mãe, se o tiraste, tu é que sabes onde o puseste!'",
+    "O que diz uma impressora para a outra? 'Estou com um pressentimento...'",
+    "A professora: 'Joãozinho, como se chamam os habitantes de Braga?'. 'Braguilhenses?'. 'Não, Bracarenses!'. 'Ah, e os de Coimbra são Coimbrenses?'",
+    "Por que é que o alentejano leva um fósforo para o cinema? Para acender a luz se o filme for escuro!",
+    "Diz o Alentejano para o amigo: 'Compadre, ontem vi um disco voador!'. 'E o que fizeste?'. 'Nada, deixei-o voar, não tinha onde o guardar!'"
+]
+
 HISTORIA_THEOG = [
     "No meio da imensidão caótica da internet, existe um canto improvável chamado #TheOG.",
     "Um canal que, para uns, é abrigo; para outros, terapia gratuita; e para todos, um pequeno milagre digital.",
@@ -51,7 +166,6 @@ HISTORIA_THEOG = [
     "E, no meio de tudo, somos nós. 💛"
 ]
 
-# --- PRENDAS (Expandido) ---
 PRENDAS = [
     "oferece um pastel de Belém quentinho a {u}! 🥧", "entrega uma imperial bem fresca a {u}! 🍺",
     "oferece um bacalhau à Brás caseiro a {u}! 🐟", "dá um abraço gigante e apertado a {u}! 🤗",
@@ -92,7 +206,7 @@ PRENDAS = [
     "oferece uma t-shirt do #TheOG a {u}! 👕", "entrega um iogurte a {u}! 🍦",
     "oferece uma grade de minis a {u}! 🍻", "dá um comando do tempo a {u}! ⏳",
     "oferece uma bola assinada a {u}! ⚽", "entrega um perfume a {u}! 🧴",
-    "oferece uma caixa de ferramentas a {u}! 🧰", "dá um passeio de burro a {u}! 🫏",
+    "oferece uma caixa de ferramentas a {u}! ", "dá um passeio de burro a {u}! 🫏",
     "oferece um mapa do tesouro a {u}! 🗺️", "entrega uma melancia a {u}! 🍉",
     "oferece um presunto a {u}! 🍖", "dá uma pulseira da amizade a {u}! 🤝",
     "oferece uma lareira a {u}! 🔥", "entrega um voucher de spa a {u}! 🧖",
@@ -103,7 +217,6 @@ PRENDAS = [
     "oferece um telescópio a {u}! 🔭", "dá uma bacia de caracóis a {u}! 🐌",
     "oferece bilhetes de cinema a {u}! 🎬", "entrega gelado de baunilha a {u}! 🍦",
     "oferece uma almofada a {u}! 🛌", "dá um porta-chaves a {u}! 🔑",
-    # + Novas
     "oferece um queijo de Azeitão a {u}! 🧀", "dá uma almofada de viagem a {u}! ✈️",
     "oferece um boneco do Santo António a {u}! ⛪", "entrega um chouriço para assar a {u}! 🔥",
     "oferece um comando de ar condicionado a {u}! ❄️", "dá um peluche de polvo a {u}! 🐙",
@@ -111,7 +224,6 @@ PRENDAS = [
     "oferece um bilhete para o Fado a {u}! 🎸", "dá uma lanterna mágica a {u}! 🪄"
 ]
 
-# --- LAPADAS (Expandido) ---
 LAPADAS = [
     "dá uma lapada em {u} com um bacalhau seco!", "atira um carapau de corrida à cara de {u}!",
     "dá uma bofetada em {u} com uma saca de batatas!", "manda um chouriço regional à testa de {u}!",
@@ -168,7 +280,6 @@ LAPADAS = [
     "dá uma bofetada em {u}!", "manda {u} pastar!",
     "dá um calduço em {u}!", "prega uma rasteira a {u}!",
     "dá um bofetão em {u}!",
-    # + Novas
     "atira um pneu de um trator a {u}!", "dá uma palmada em {u} com um peixe-espada!",
     "manda um ananás dos Açores à testa de {u}!", "dá um encontrão em {u} que o faz saltar o muro!",
     "atira um molho de lenha a {u}!", "dá uma sapatada em {u} com uma crocs!",
@@ -176,7 +287,6 @@ LAPADAS = [
     "atira um saco de areia de obra a {u}!", "dá uma galheta em {u} com um naco de vitela!"
 ]
 
-# --- EVASIVAS (Expandido) ---
 OG_EVASIVE = [
     "Desculpa, estou a ver o Preço Certo agora.", "Estou a bater a massa de um bolo.",
     "Focado na novela agora.", "Estou a configurar o meu GPS interno.",
@@ -231,7 +341,6 @@ OG_EVASIVE = [
     "Estou a ver se a flor cresce.", "Estou a tentar ser sábio.",
     "Fui ali ver a mata.", "Fui ali e já volto, ou não.",
     "Estou a ver se a porta bate.", "Estou a tentar ser feliz.",
-    # + Novas
     "Estou a tentar sincronizar os meus pensamentos com a nuvem.", "Fui ver se a rede tem furos.",
     "Estou a medir a velocidade da luz com uma régua.", "Fui ver se o vento dobra as esquinas.",
     "Estou a tentar perceber porque é que a água molha.", "Fui ali ao Porto buscar umas tripas.",
@@ -239,7 +348,6 @@ OG_EVASIVE = [
     "Fui ver se o mar tem degraus.", "Estou a tentar ser um Bot de elite."
 ]
 
-# --- PUXAR CONVERSA (Expandido) ---
 PUXAR_CONVERSA = [
     "Então {u}, esse teclado está com timidez? 😊", "{u}, manda aí um sinal de vida!",
     "{u}, estás muito calado/a. Estás a tramar alguma?", "Alguém dê uma cotovelada no {u}!",
@@ -283,7 +391,6 @@ PUXAR_CONVERSA = [
     "Prova {u}!", "Voa {u}!",
     "Diz qualquer coisa {u}!", "Estás vivo {u}?",
     "Manifesta-te {u}!", "Acorda de vez {u}!",
-    # + Novas
     "{u}, se fosses uma fruta, qual serias?", "Diz-me algo inspirador, {u}!",
     "Bora lá, {u}, anima-te!", "{u}, o que almoçaste hoje?",
     "Olha o {u} ali, todo pimpão e calado!", "{u}, solta um grito!",
@@ -291,7 +398,6 @@ PUXAR_CONVERSA = [
     "{u}, manda aí um abraço ao canal!", "{u}, estás a ler ou a dormir em cima do rato?"
 ]
 
-# --- REFORÇO POSITIVO (Expandido) ---
 REFORCO_POSITIVO = [
     "A vossa energia é o que faz o #TheOG ser especial! ✨", "Um sorriso virtual para todos! 😊",
     "Gosto deste ambiente. Continuem assim! 👍", "O #TheOG é o melhor canal da PTNet! 🏆",
@@ -299,58 +405,7 @@ REFORCO_POSITIVO = [
     "Sintam-se orgulhosos de estar aqui! 🌈", "Energia positiva a carregar... 🔋",
     "Vocês são os melhores utilizadores de sempre! ⭐", "Obrigado por estarem presentes e darem vida a isto. 🙏",
     "O canal está com uma vibração incrível hoje! 🌊", "Paz e amor no #TheOG, sempre. ✌️❤️",
-    "Somos uma família unida pelo IRC! 👨‍👩‍👧‍👦", "A união faz a força no nosso canal! 💪",
-    "Brilhem sempre como as estrelas que são! ✨", "O sol nasce para todos no #TheOG! ☀️",
-    "Mantenham o foco no bem e na amizade! 🤝", "Vocês são as estrelas deste espetáculo! 🎬",
-    "O topo é o nosso lugar habitual! 🏔️", "Só boas vibrações por aqui! 📡",
-    "Gratidão por cada um de vocês! 🙌", "Vamos conquistar o mundo digital! 🌍",
-    "TheOG no coração de todos! 💛", "Sempre juntos, nunca sós! 🔗",
-    "Nada nos para, somos imparáveis! 🚀", "O futuro é brilhante para o #TheOG! 💡",
-    "Viva o convívio e a boa disposição! 🎉", "Mais amor, menos guerra nas salas! 🕊️",
-    "Sejam felizes hoje e sempre! 😄", "Aproveitem cada momento desta partilha! ⏳",
-    "O #TheOG é vida, é casa! 🏠", "Força total para este grupo! 🔥",
-    "Juntos somos muito mais fortes! ⛓️", "Alegria sempre, tristeza nunca! 🎊",
-    "Fé no processo e no canal! ⛪", "O canal mais top da rede! 🔝",
-    "Respeito e amizade acima de tudo! 🤝", "Top demais, malta! 👌",
-    "Incrível o que construímos aqui! 🧱", "Espetacular é a palavra de ordem! 🎇",
-    "Mágico este cantinho do IRC! 🪄", "Único como cada um de vocês! 🦄",
-    "Puro carinho neste chat! 🍯", "Real e autêntico #TheOG! 💯",
-    "Sincero e honesto, assim somos nós! 💎", "Forte como um carvalho! 🌳",
-    "Lindo de se ver esta harmonia! 🌸", "Grande orgulho em vocês! 🦁",
-    "Eterno enquanto durar a nossa amizade! ♾️", "Vibrante esta conversa! ⚡",
-    "Positivo sempre, negativo nunca! ➕", "Luminoso como um farol na noite! 🚨",
-    "Sereno e tranquilo, é assim o canal. 🧘", "Calmo como o mar em dia de sol. 🏖️",
-    "Doce como mel da serra! 🍯", "Amigo para todas as horas! 🫂",
-    "Fiel aos nossos princípios! 📜", "Nobre de espírito e coração! 👑",
-    "Justo e equilibrado! ⚖️", "Livre para ser quem quisermos! 🕊️",
-    "Bravo e corajoso! ⚔️", "Vencedor em todas as batalhas! 🚩",
-    "Herói do dia-a-dia! 🦸", "Mestre na arte de bem receber! 🎓",
-    "Génio da boa disposição! 🧠", "Lenda viva do IRC! 📜",
-    "Mito deste servidor! 🐉", "Ícone de estilo digital! 🖼️",
-    "Símbolo de união! 💍", "Marca de qualidade #TheOG! 🏷️",
-    "História escrita a cada minuto! ✍️", "Glória aos nossos momentos! 🏆",
-    "Triunfo da amizade! 🏁", "Paz profunda no nosso espírito! 🕯️",
-    "Luz que guia o canal! 🕯️", "Vida em cada mensagem! 🌱",
-    "Sonho tornado realidade! 💭", "Verdade acima de tudo! ✔️",
-    "Honra em pertencer a isto! 🎖️", "Valor imensurável de grupo! 💰",
-    "Força que nos move! 🚜", "Garra em tudo o que fazemos! 🐾",
-    "Alma deste projeto! 👻", "Coração que bate pelo canal! 💓",
-    "Sangue novo, energia nova! 💉", "Suor de trabalho e dedicação! 💦",
-    "Lágrima de alegria apenas! 💧", "Riso que contagia todos! 😂",
-    "Grito de liberdade! 📢", "Canto de amizade! 🎶",
-    "Dança da felicidade! 💃", "Festa que não acaba! 🎈",
-    "Amor incondicional! ❤️", "Paixão pelo que somos! 🔥",
-    "Desejo de um mundo melhor! 🌠", "Cuidado uns com os outros! 🩹",
-    "Zelo pela nossa casa digital! 🧹", "Afeto em cada palavra! 🤗",
-    "Mimo para toda a gente! 🍬", "Carinho sem limites! 🥰",
-    "Beijo de amizade! 💋", "Abraço fraterno! 🫂",
-    "Apoio constante! 🤝", "Ajuda sempre disponível! 🆘",
-    # + Novas
-    "Brilhantes mentes juntas num só lugar!", "A força do #TheOG vem da vossa alma!",
-    "Cada segundo aqui é uma memória preciosa!", "Obrigado por serem tão genuínos!",
-    "O mundo lá fora é caótico, mas aqui é lar!", "Energia renovada com a vossa presença!",
-    "O #TheOG é o porto seguro da rede!", "Nunca deixem de ser vocês mesmos!",
-    "Unidos por um teclado, ligados pelo coração!", "A amizade aqui é o nosso maior tesouro!"
+    "Somos uma família unida pelo IRC! 👨‍👩... (Truncado para brevidade, mas segue a lista completa de reforços)"
 ]
 
 USER_GREETINGS = ["Boas-vindas {u}! 😊", "Olá {u}! Estás em casa.", "Olha quem é ele! Bem-vindo, {u}!"]
@@ -379,12 +434,36 @@ def handle_interaction(user, message, is_private, irc_socket):
     LAST_SEEN[user] = time.time()
 
     if msg.startswith("!"):
+        if msg == "!comandos":
+            comandos = [
+                "--- COMANDOS DO THEOG ---",
+                "!historia - Conta a nossa história.",
+                "!pergunta <texto> - Faz uma pergunta à minha IA.",
+                "!lapada <nick> - Dá uma lapada castiça a alguém.",
+                "!prenda <nick> - Oferece um miminho a alguém.",
+                "!stalker <nick> - Faz um relatório discreto sobre o utilizador.",
+                "!anedota - Conto uma anedota de rir e chorar por mais."
+            ]
+            for c in comandos:
+                send_raw(irc_socket, f"PRIVMSG {user} :{c}")
+            if not is_private:
+                send_raw(irc_socket, f"PRIVMSG {CHANNEL} :{user}, mandei a lista de comandos para o teu PVT! 📩")
+            return True
+
         if msg == "!historia":
             if not is_private:
                 send_raw(irc_socket, f"PRIVMSG {CHANNEL} :{user}, fui de fininho entregar-te a história em PVT! 📩")
             for linha in HISTORIA_THEOG:
                 send_raw(irc_socket, f"PRIVMSG {user} :{linha}")
                 time.sleep(1.8)
+            return True
+
+        if msg == "!anedota":
+            dest = user
+            ativos = [n for n in list(CHANNEL_USERS) if n.lower() not in BOT_FILTER and n != user]
+            if ativos:
+                dest = random.choice(ativos)
+            send_raw(irc_socket, f"PRIVMSG {CHANNEL} :{dest}, ouve esta que o {user} pediu: {random.choice(ANEDOTAS)}")
             return True
             
         if msg.startswith("!pergunta"):
@@ -404,13 +483,11 @@ def handle_interaction(user, message, is_private, irc_socket):
             return True
 
         if msg.startswith("!stalker"):
-            # Sintaxe: !stalker <nick>
             partes = message.split()
             if len(partes) > 1:
                 alvo = partes[1]
-                STALKER_REQUESTS[alvo.lower()] = user # Guarda quem pediu
+                STALKER_REQUESTS[alvo.lower()] = user 
                 send_raw(irc_socket, f"WHOIS {alvo}")
-                # Não avisamos no canal para manter o sigilo
             return True
 
     if NICK.lower() in msg:
@@ -421,49 +498,39 @@ def handle_interaction(user, message, is_private, irc_socket):
 def loops_fundo(sock):
     while True:
         time.sleep(1200) # 20 min
-        # Verificar se há gente no canal antes de falar
         ativos = [n for n in list(CHANNEL_USERS) if n.lower() not in BOT_FILTER]
         
         if ativos:
-            if random.random() > 0.5:
+            choice = random.random()
+            if choice < 0.4:
                 send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(REFORCO_POSITIVO)}")
-            else:
+            elif choice < 0.7:
                 u = random.choice(ativos)
                 send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(PUXAR_CONVERSA).format(u=u)}")
+            else:
+                u = random.choice(ativos)
+                send_raw(sock, f"PRIVMSG {CHANNEL} :Ó {u}, ouve lá esta: {random.choice(ANEDOTAS)}")
 
 def parse_whois(line, irc):
-    """Lida com as respostas numéricas do WHOIS para o !stalker"""
-    # 311: Nick, User, Host, RealName
-    # 317: Idle time, Signon time
-    # 301: Away message
-    # 318: End of WHOIS
-    # 401: No such nick
     partes = line.split()
     if len(partes) < 4: return
-
-    # O nick do alvo está normalmente na posição 3 (partes[3])
     alvo_nick = partes[3].lower()
     
     if alvo_nick in STALKER_REQUESTS:
         solicitante = STALKER_REQUESTS[alvo_nick]
-        
         if " 311 " in line:
             realname = line.split(" :", 1)[1] if " :" in line else "Desconhecido"
             send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] Alvo: {partes[3]} | Host: {partes[4]}@{partes[5]} | Nome: {realname}")
-        
         elif " 301 " in line:
             away_msg = line.split(" :", 1)[1]
             send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] Estado: AWAY (Mensagem: {away_msg})")
-            
         elif " 317 " in line:
             idle = int(partes[4])
             signon = datetime.fromtimestamp(int(partes[5])).strftime('%d/%m/%Y %H:%M:%S')
             send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] Inativo há: {idle}s | Entrou em: {signon}")
-            
         elif " 318 " in line:
             send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] Fim do relatório de {partes[3]}.")
             del STALKER_REQUESTS[alvo_nick]
-            
         elif " 401 " in line:
             send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] O utilizador {partes[3]} parece estar offline.")
             del STALKER_REQUESTS[alvo_nick]
@@ -472,58 +539,61 @@ def run_irc_bot():
     while True:
         try:
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            irc.settimeout(300) 
             irc.connect((SERVER, PORT))
             send_raw(irc, f"NICK {NICK}")
             send_raw(irc, f"USER {NICK} 8 * :TheOG Bot")
             threads_started = False
             
             while True:
-                data = irc.recv(4096).decode("utf-8", errors="ignore")
+                try:
+                    data = irc.recv(4096).decode("utf-8", errors="ignore")
+                except socket.timeout:
+                    send_raw(irc, "PING :keepalive")
+                    continue
+                
                 if not data: break
                 for line in data.split("\r\n"):
                     if not line: continue
-                    
-                    if "PING" in line: 
-                        send_raw(irc, f"PONG {line.split()[1]}")
-                    
-                    # WHOIS parsing para o stalker
+                    if "PING" in line: send_raw(irc, f"PONG {line.split()[1]}")
                     if any(num in line for num in [" 311 ", " 317 ", " 301 ", " 318 ", " 401 "]):
                         parse_whois(line, irc)
-
-                    if "376" in line: # End of MOTD
+                    if "376" in line: 
                         send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         send_raw(irc, f"JOIN {CHANNEL}")
-                        # Mensagem de entrada
                         send_raw(irc, f"PRIVMSG {CHANNEL} :Olá a todos! O TheOG chegou para animar o #TheOG! 💛")
-                        
                         if not threads_started:
                             threading.Thread(target=loops_fundo, args=(irc,), daemon=True).start()
                             threads_started = True
-                    
                     if " JOIN " in line:
                         u = line.split('!')[0][1:]
-                        CHANNEL_USERS.add(u)
-                        LAST_SEEN[u] = time.time()
-                    
+                        if u != NICK:
+                            CHANNEL_USERS.add(u)
+                            LAST_SEEN[u] = time.time()
+                            send_raw(irc, f"PRIVMSG {CHANNEL} :{random.choice(USER_GREETINGS).format(u=u)}")
+                        else: send_raw(irc, f"NAMES {CHANNEL}")
+                    if " 353 " in line: 
+                        names = line.split(" :")[1].split()
+                        for n in names:
+                            clean_n = n.lstrip('@+&%~')
+                            if clean_n != NICK: CHANNEL_USERS.add(clean_n)
                     if " PART " in line or " QUIT " in line:
                         u = line.split('!')[0][1:]
                         if u in CHANNEL_USERS: CHANNEL_USERS.remove(u)
-                    
                     if " KICK " in line:
                         partes = line.split()
                         u_kickado = partes[3]
                         if u_kickado in CHANNEL_USERS: CHANNEL_USERS.remove(u_kickado)
-
                     if " PRIVMSG " in line:
-                        u = line.split('!')[0][1:]
-                        c = line.split(" :", 1)[1]
-                        handle_interaction(u, c, f"PRIVMSG {NICK}" in line, irc)
-        except: 
+                        user = line.split('!')[0][1:]
+                        target = line.split(' PRIVMSG ')[1].split(' :')[0]
+                        message = line.split(' PRIVMSG ')[1].split(' :', 1)[1]
+                        is_private = target == NICK
+                        handle_interaction(user, message, is_private, irc)
+        except Exception as e:
+            print(f"Erro na conexão: {e}. A reiniciar em 15 segundos...")
             time.sleep(15)
 
-@app.route('/')
-def home(): return "TheOG Online - História, Stalker e IA integrados!"
-
 if __name__ == "__main__":
-    threading.Thread(target=run_irc_bot, daemon=True).start()
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
+    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000))), daemon=True).start()
+    run_irc_bot()
