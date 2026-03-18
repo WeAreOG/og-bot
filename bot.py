@@ -22,6 +22,7 @@ API_URL = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8
 app = Flask(__name__)
 LAST_SEEN = {}       
 CHANNEL_USERS = set() 
+STALKER_REQUESTS = {} # Para gerir quem pediu o !stalker
 
 # --- A HISTÓRIA DO #THEOG ---
 HISTORIA_THEOG = [
@@ -50,7 +51,7 @@ HISTORIA_THEOG = [
     "E, no meio de tudo, somos nós. 💛"
 ]
 
-# --- +100 PRENDAS COM EMOTICONS ---
+# --- PRENDAS (Expandido) ---
 PRENDAS = [
     "oferece um pastel de Belém quentinho a {u}! 🥧", "entrega uma imperial bem fresca a {u}! 🍺",
     "oferece um bacalhau à Brás caseiro a {u}! 🐟", "dá um abraço gigante e apertado a {u}! 🤗",
@@ -101,10 +102,16 @@ PRENDAS = [
     "oferece mel caseiro a {u}! 🍯", "entrega uma joia rara a {u}! 💍",
     "oferece um telescópio a {u}! 🔭", "dá uma bacia de caracóis a {u}! 🐌",
     "oferece bilhetes de cinema a {u}! 🎬", "entrega gelado de baunilha a {u}! 🍦",
-    "oferece uma almofada a {u}! 🛌", "dá um porta-chaves a {u}! 🔑"
+    "oferece uma almofada a {u}! 🛌", "dá um porta-chaves a {u}! 🔑",
+    # + Novas
+    "oferece um queijo de Azeitão a {u}! 🧀", "dá uma almofada de viagem a {u}! ✈️",
+    "oferece um boneco do Santo António a {u}! ⛪", "entrega um chouriço para assar a {u}! 🔥",
+    "oferece um comando de ar condicionado a {u}! ❄️", "dá um peluche de polvo a {u}! 🐙",
+    "oferece uma miniatura de um elétrico de Lisboa a {u}! 🚋", "entrega um voucher de tatuagem a {u}! 🖋️",
+    "oferece um bilhete para o Fado a {u}! 🎸", "dá uma lanterna mágica a {u}! 🪄"
 ]
 
-# --- +100 LAPADAS ---
+# --- LAPADAS (Expandido) ---
 LAPADAS = [
     "dá uma lapada em {u} com um bacalhau seco!", "atira um carapau de corrida à cara de {u}!",
     "dá uma bofetada em {u} com uma saca de batatas!", "manda um chouriço regional à testa de {u}!",
@@ -160,10 +167,16 @@ LAPADAS = [
     "dá um murro em {u}!", "atira uma pedra a {u}!",
     "dá uma bofetada em {u}!", "manda {u} pastar!",
     "dá um calduço em {u}!", "prega uma rasteira a {u}!",
-    "dá um bofetão em {u}!"
+    "dá um bofetão em {u}!",
+    # + Novas
+    "atira um pneu de um trator a {u}!", "dá uma palmada em {u} com um peixe-espada!",
+    "manda um ananás dos Açores à testa de {u}!", "dá um encontrão em {u} que o faz saltar o muro!",
+    "atira um molho de lenha a {u}!", "dá uma sapatada em {u} com uma crocs!",
+    "atira uma lata de tinta azul a {u}!", "manda {u} ir catar macacos!",
+    "atira um saco de areia de obra a {u}!", "dá uma galheta em {u} com um naco de vitela!"
 ]
 
-# --- +100 EVASIVAS ---
+# --- EVASIVAS (Expandido) ---
 OG_EVASIVE = [
     "Desculpa, estou a ver o Preço Certo agora.", "Estou a bater a massa de um bolo.",
     "Focado na novela agora.", "Estou a configurar o meu GPS interno.",
@@ -217,10 +230,16 @@ OG_EVASIVE = [
     "Estou a tentar ser magro.", "Fui ali ao vale.",
     "Estou a ver se a flor cresce.", "Estou a tentar ser sábio.",
     "Fui ali ver a mata.", "Fui ali e já volto, ou não.",
-    "Estou a ver se a porta bate.", "Estou a tentar ser feliz."
+    "Estou a ver se a porta bate.", "Estou a tentar ser feliz.",
+    # + Novas
+    "Estou a tentar sincronizar os meus pensamentos com a nuvem.", "Fui ver se a rede tem furos.",
+    "Estou a medir a velocidade da luz com uma régua.", "Fui ver se o vento dobra as esquinas.",
+    "Estou a tentar perceber porque é que a água molha.", "Fui ali ao Porto buscar umas tripas.",
+    "Estou a ver se as formigas fazem greve.", "Estou a tentar ler um código QR com os olhos.",
+    "Fui ver se o mar tem degraus.", "Estou a tentar ser um Bot de elite."
 ]
 
-# --- +100 PUXAR CONVERSA ---
+# --- PUXAR CONVERSA (Expandido) ---
 PUXAR_CONVERSA = [
     "Então {u}, esse teclado está com timidez? 😊", "{u}, manda aí um sinal de vida!",
     "{u}, estás muito calado/a. Estás a tramar alguma?", "Alguém dê uma cotovelada no {u}!",
@@ -263,10 +282,16 @@ PUXAR_CONVERSA = [
     "Ama {u}!", "Cheira {u}!",
     "Prova {u}!", "Voa {u}!",
     "Diz qualquer coisa {u}!", "Estás vivo {u}?",
-    "Manifesta-te {u}!", "Acorda de vez {u}!"
+    "Manifesta-te {u}!", "Acorda de vez {u}!",
+    # + Novas
+    "{u}, se fosses uma fruta, qual serias?", "Diz-me algo inspirador, {u}!",
+    "Bora lá, {u}, anima-te!", "{u}, o que almoçaste hoje?",
+    "Olha o {u} ali, todo pimpão e calado!", "{u}, solta um grito!",
+    "{u}, se o teclado falasse, o que diria de ti?", "O {u} está em modo meditação?",
+    "{u}, manda aí um abraço ao canal!", "{u}, estás a ler ou a dormir em cima do rato?"
 ]
 
-# --- +100 REFORÇO POSITIVO ---
+# --- REFORÇO POSITIVO (Expandido) ---
 REFORCO_POSITIVO = [
     "A vossa energia é o que faz o #TheOG ser especial! ✨", "Um sorriso virtual para todos! 😊",
     "Gosto deste ambiente. Continuem assim! 👍", "O #TheOG é o melhor canal da PTNet! 🏆",
@@ -319,12 +344,19 @@ REFORCO_POSITIVO = [
     "Zelo pela nossa casa digital! 🧹", "Afeto em cada palavra! 🤗",
     "Mimo para toda a gente! 🍬", "Carinho sem limites! 🥰",
     "Beijo de amizade! 💋", "Abraço fraterno! 🫂",
-    "Apoio constante! 🤝", "Ajuda sempre disponível! 🆘"
+    "Apoio constante! 🤝", "Ajuda sempre disponível! 🆘",
+    # + Novas
+    "Brilhantes mentes juntas num só lugar!", "A força do #TheOG vem da vossa alma!",
+    "Cada segundo aqui é uma memória preciosa!", "Obrigado por serem tão genuínos!",
+    "O mundo lá fora é caótico, mas aqui é lar!", "Energia renovada com a vossa presença!",
+    "O #TheOG é o porto seguro da rede!", "Nunca deixem de ser vocês mesmos!",
+    "Unidos por um teclado, ligados pelo coração!", "A amizade aqui é o nosso maior tesouro!"
 ]
 
 USER_GREETINGS = ["Boas-vindas {u}! 😊", "Olá {u}! Estás em casa.", "Olha quem é ele! Bem-vindo, {u}!"]
 
 # --- LÓGICA DO BOT ---
+
 def send_raw(sock, msg):
     try: sock.send(f"{msg}\r\n".encode('utf-8'))
     except: pass
@@ -348,11 +380,8 @@ def handle_interaction(user, message, is_private, irc_socket):
 
     if msg.startswith("!"):
         if msg == "!historia":
-            # Se for pedido no canal, avisa que mandou por PVT
             if not is_private:
                 send_raw(irc_socket, f"PRIVMSG {CHANNEL} :{user}, fui de fininho entregar-te a história em PVT! 📩")
-            
-            # Envia sempre a história diretamente para o user em PVT
             for linha in HISTORIA_THEOG:
                 send_raw(irc_socket, f"PRIVMSG {user} :{linha}")
                 time.sleep(1.8)
@@ -374,6 +403,16 @@ def handle_interaction(user, message, is_private, irc_socket):
             send_raw(irc_socket, f"PRIVMSG {CHANNEL} :\x01ACTION {random.choice(PRENDAS).format(u=dest)} (cortesia de {user})\x01")
             return True
 
+        if msg.startswith("!stalker"):
+            # Sintaxe: !stalker <nick>
+            partes = message.split()
+            if len(partes) > 1:
+                alvo = partes[1]
+                STALKER_REQUESTS[alvo.lower()] = user # Guarda quem pediu
+                send_raw(irc_socket, f"WHOIS {alvo}")
+                # Não avisamos no canal para manter o sigilo
+            return True
+
     if NICK.lower() in msg:
         send_raw(irc_socket, f"PRIVMSG {target} :{user}: {random.choice(OG_EVASIVE)}")
         return True
@@ -382,13 +421,52 @@ def handle_interaction(user, message, is_private, irc_socket):
 def loops_fundo(sock):
     while True:
         time.sleep(1200) # 20 min
-        if random.random() > 0.5:
-            send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(REFORCO_POSITIVO)}")
-        else:
-            inativos = [n for n in list(CHANNEL_USERS) if n.lower() not in BOT_FILTER]
-            if inativos:
-                u = random.choice(inativos)
+        # Verificar se há gente no canal antes de falar
+        ativos = [n for n in list(CHANNEL_USERS) if n.lower() not in BOT_FILTER]
+        
+        if ativos:
+            if random.random() > 0.5:
+                send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(REFORCO_POSITIVO)}")
+            else:
+                u = random.choice(ativos)
                 send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(PUXAR_CONVERSA).format(u=u)}")
+
+def parse_whois(line, irc):
+    """Lida com as respostas numéricas do WHOIS para o !stalker"""
+    # 311: Nick, User, Host, RealName
+    # 317: Idle time, Signon time
+    # 301: Away message
+    # 318: End of WHOIS
+    # 401: No such nick
+    partes = line.split()
+    if len(partes) < 4: return
+
+    # O nick do alvo está normalmente na posição 3 (partes[3])
+    alvo_nick = partes[3].lower()
+    
+    if alvo_nick in STALKER_REQUESTS:
+        solicitante = STALKER_REQUESTS[alvo_nick]
+        
+        if " 311 " in line:
+            realname = line.split(" :", 1)[1] if " :" in line else "Desconhecido"
+            send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] Alvo: {partes[3]} | Host: {partes[4]}@{partes[5]} | Nome: {realname}")
+        
+        elif " 301 " in line:
+            away_msg = line.split(" :", 1)[1]
+            send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] Estado: AWAY (Mensagem: {away_msg})")
+            
+        elif " 317 " in line:
+            idle = int(partes[4])
+            signon = datetime.fromtimestamp(int(partes[5])).strftime('%d/%m/%Y %H:%M:%S')
+            send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] Inativo há: {idle}s | Entrou em: {signon}")
+            
+        elif " 318 " in line:
+            send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] Fim do relatório de {partes[3]}.")
+            del STALKER_REQUESTS[alvo_nick]
+            
+        elif " 401 " in line:
+            send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] O utilizador {partes[3]} parece estar offline.")
+            del STALKER_REQUESTS[alvo_nick]
 
 def run_irc_bot():
     while True:
@@ -398,27 +476,53 @@ def run_irc_bot():
             send_raw(irc, f"NICK {NICK}")
             send_raw(irc, f"USER {NICK} 8 * :TheOG Bot")
             threads_started = False
+            
             while True:
                 data = irc.recv(4096).decode("utf-8", errors="ignore")
                 if not data: break
                 for line in data.split("\r\n"):
-                    if "PING" in line: send_raw(irc, f"PONG {line.split()[1]}")
-                    if "376" in line:
+                    if not line: continue
+                    
+                    if "PING" in line: 
+                        send_raw(irc, f"PONG {line.split()[1]}")
+                    
+                    # WHOIS parsing para o stalker
+                    if any(num in line for num in [" 311 ", " 317 ", " 301 ", " 318 ", " 401 "]):
+                        parse_whois(line, irc)
+
+                    if "376" in line: # End of MOTD
                         send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         send_raw(irc, f"JOIN {CHANNEL}")
+                        # Mensagem de entrada
+                        send_raw(irc, f"PRIVMSG {CHANNEL} :Olá a todos! O TheOG chegou para animar o #TheOG! 💛")
+                        
                         if not threads_started:
                             threading.Thread(target=loops_fundo, args=(irc,), daemon=True).start()
                             threads_started = True
+                    
                     if " JOIN " in line:
                         u = line.split('!')[0][1:]
-                        CHANNEL_USERS.add(u); LAST_SEEN[u] = time.time()
+                        CHANNEL_USERS.add(u)
+                        LAST_SEEN[u] = time.time()
+                    
+                    if " PART " in line or " QUIT " in line:
+                        u = line.split('!')[0][1:]
+                        if u in CHANNEL_USERS: CHANNEL_USERS.remove(u)
+                    
+                    if " KICK " in line:
+                        partes = line.split()
+                        u_kickado = partes[3]
+                        if u_kickado in CHANNEL_USERS: CHANNEL_USERS.remove(u_kickado)
+
                     if " PRIVMSG " in line:
-                        u = line.split('!')[0][1:]; c = line.split(" :", 1)[1]
+                        u = line.split('!')[0][1:]
+                        c = line.split(" :", 1)[1]
                         handle_interaction(u, c, f"PRIVMSG {NICK}" in line, irc)
-        except: time.sleep(15)
+        except: 
+            time.sleep(15)
 
 @app.route('/')
-def home(): return "TheOG Online - História em PVT, Listas Completas e Sem Cortes!"
+def home(): return "TheOG Online - História, Stalker e IA integrados!"
 
 if __name__ == "__main__":
     threading.Thread(target=run_irc_bot, daemon=True).start()
