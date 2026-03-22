@@ -11,20 +11,20 @@ from flask import Flask
 SERVER = "irc.ptnet.org"
 PORT = 6667
 NICK = "TheOG"
-PASS = "Nasomet112#" 
+PASS = "Nasomet112#"
 CHANNEL = "#TheOG"
 BOT_FILTER = ["nickserv", "chanserv", "memoserv", "operserv", "adamastor", "statserv", "secure", "authserv", "irc", "theog", "bot"]
 
 # --- CONFIGURAÇÃO IA ---
-HF_TOKEN = "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" 
+HF_TOKEN = "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"
 API_URL = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
 
 app = Flask(__name__)
-LAST_SEEN = {}       
-CHANNEL_USERS = set() 
+LAST_SEEN = {}
+CHANNEL_USERS = set()
 STALKER_REQUESTS = {}
 
-# --- CONTEÚDO PERSONALIZADO ---
+# --- CONTEÚDO (MANTIDO O ORIGINAL E ACRESCENTADO O NOVO) ---
 
 ANEDOTAS = [
     "O Joãozinho pergunta à mãe: 'Mãe, o Natal este ano cai à sexta-feira?'. A mãe responde: 'Deus queira que não, Joãozinho! Espero que caia no dia 25!'",
@@ -68,7 +68,7 @@ ANEDOTAS = [
     "O que é que um átomo disse para o outro? 'Acho que perdi um eletrão'. 'Tens a certeza?'. 'Sim, estou positivo!'",
     "Por que é que os pássaros voam para sul no inverno? Porque é muito longe para irem a pé!",
     "O que é que o livro de história disse para o de geografia? 'Tu tens muitos mapas, mas eu tenho muitas datas!'",
-    "O que é que o tomate disse para a alface? 'Tu és uma verdura e eu sou um fruto!'",
+    "O que é que o tomate disse para la alface? 'Tu és uma verdura e eu sou um fruto!'",
     "Por que é que o computador foi ao médico? Porque tinha um vírus!",
     "O que é que a chave disse para a fechadura? 'Vamos dar uma voltinha?'",
     "Por que é que o peixe não fala? Porque tem a boca cheia de água!",
@@ -108,7 +108,7 @@ ANEDOTAS = [
     "Por que é que o tubarão não come palhaços? Porque têm um sabor engraçado!",
     "O que é que a faca disse para o garfo? 'Tu picas-me todo!'",
     "Por que é que o macaco gosta de bananas? Porque são doces!",
-    "O que é que a abelha disse para a flor? 'Dá-me o teu pólen!'",
+    "O que é que la abelha disse para a flor? 'Dá-me o teu pólen!'",
     "Por que é que o elefante tem medo de ratos? Porque são pequenos e rápidos!",
     "O que é que o rio disse para o mar? 'Vou-me juntar a ti!'",
     "Por que é que a tartaruga é lenta? Porque carrega a casa às costas!",
@@ -137,7 +137,48 @@ ANEDOTAS = [
     "O que diz uma impressora para a outra? 'Estou com um pressentimento...'",
     "A professora: 'Joãozinho, como se chamam os habitantes de Braga?'. 'Braguilhenses?'. 'Não, Bracarenses!'. 'Ah, e os de Coimbra são Coimbrenses?'",
     "Por que é que o alentejano leva um fósforo para o cinema? Para acender a luz se o filme for escuro!",
-    "Diz o Alentejano para o amigo: 'Compadre, ontem vi um disco voador!'. 'E o que fizeste?'. 'Nada, deixei-o voar, não tinha onde o guardar!'"
+    "Diz o Alentejano para o amigo: 'Compadre, ontem vi um disco voador!'. 'E o que fizeste?'. 'Nada, deixei-o voar, não tinha onde o guardar!'",
+    # +50 NOVAS
+    "O que é um ponto verde no canto da sala? Uma ervilha de castigo.", "O que faz um pato no espaço? Vácuo.", "Como se chama uma ovelha karaté? Meee-esta!",
+    "Por que é que o esqueleto não atravessou a estrada? Não teve coragem.", "Qual o peixe que sabe as horas? Tique-taquário.", "Ladrão de Wi-Fi? Rouba-bytes.",
+    "Batman não gosta de luz? Robin é das meias-noites.", "Oceano cumprimenta a praia? Faz uma onda.", "Vaca no espaço? Vácuo.", "Computador tem medo do quê? Do teclado.",
+    "Urso sem dentes? Peluche.", "Caneta não escreve? Sem pernas.", "Cão mágico? Labracadabrador.", "Frigorífico e comida? Guardam segredo.", "Pão não quer ser torrada? Medo de queimar.",
+    "Peixe do 10º andar? Aaaah-tum!", "Tesoura e papel? Corte radical.", "Abelha gira? Perdeu GPS.", "Horta sem segredo? Milho tem ouvidos.", "Programador e natureza? Muitos bugs.",
+    "Ponto azul na parede? Formiga de jeans.", "Elefante e rato? Medo do clique.", "Zero e oito? Belo cinto.", "Mesa e cadeira? Não te estiques.", "Ferramenta perdida? Mar-telo.",
+    "Chave e fechadura? Vamos dar uma volta.", "Livro de culinária? Receitas para dar.", "Sol e gelado? Derrete o coração.", "Ponto preto no leite? Uma 'mosca' de neve.",
+    "Comboio e atraso? Perdeu o pio.", "Copo e água? Está cheio de si.", "Relógio e ponteiro? Dá voltas à cabeça.", "Janela e cortina? Não me escondas nada.",
+    "Sapato e meia? Chulé de estimação.", "Vento e árvore? Abana o capacete.", "Mar e sal? Estás temperado.", "Lua e estrelas? Noite de gala.", "Fogo e gelo? Amor impossível.",
+    "Chuva e terra? Lama de alegria.", "Pedra e calçada? Caminho andado.", "Porta e trinco? Abre-te sésamo.", "Carro e gasolina? Sede de estrada.", "Bicicleta e pedal? Dá-lhe corda.",
+    "Avião e nuvem? Céu de algodão.", "Barco e remo? Força nos braços.", "Pescador e peixe? Rede de intrigas.", "Médico e doente? Remédio santo.", "Professor e quadro? Giz na mão.",
+    "Cozinheiro e tacho? Tempero de mestre.", "Pintor e pincel? Arte na tela."
+]
+
+PERGUNTAS_INTERACAO = [
+    "{u}, se fosses um animal, qual serias e porquê? 🦁", "{u}, o que é que te faz rir mesmo nos dias cinzentos? 😂",
+    "{u}, como posso ajudar a melhorar o teu dia? 🌈", "{u}, qual a tua comida de conforto? 🍲",
+    "{u}, se pudesses viajar agora, para onde irias? ✈️", "{u}, último filme que te deixou colado ao ecrã? 🎬",
+    "{u}, tens algum talento escondido? 🎤", "{u}, és de acordar cedo ou de deitar tarde? 🌙",
+    "{u}, música favorita para cantar no banho? 🎶", "{u}, praia ou montanha? 🏖️",
+    "{u}, qual o teu maior sonho para este ano? ✨", "{u}, ganhasses o Euromilhões, o que fazias primeiro? 💶",
+    "{u}, o que não falta no teu pequeno-almoço? ☕", "{u}, tua palavra favorita em Português? 🇵🇹",
+    "{u}, tens animais? Como se chamam? 🐶", "{u}, viagem mais marcante? 🌍",
+    "{u}, café ou chá? ☕", "{u}, estação do ano preferida? 🍂",
+    "{u}, o que valorizas numa amizade? 🤝", "{u}, se tivesses um superpoder, qual seria? ⚡",
+    "{u}, passatempo favorito offline? 📖", "{u}, doce ou salgado? 🍫",
+    "{u}, memória de infância mais feliz? 🎈", "{u}, personagem de desenho animado favorita? 🐭",
+    "{u}, objeto para levar para ilha deserta? 🏝️", "{u}, o que te deixa entusiasmado/a? 🤩",
+    "{u}, restaurante favorito? 🍴", "{u}, ler o livro ou ver o filme? 📚",
+    "{u}, cor favorita e o que representa? 🎨", "{u}, o que gostavas de aprender a fazer? 🛠️",
+    "{u}, jogo (tabuleiro/vídeo) favorito? 🎲", "{u}, jantar com figura histórica, quem? 🍽️",
+    "{u}, teu cheiro favorito? 👃", "{u}, organizado ou vives no caos? 📂",
+    "{u}, o que te faz sentir orgulho? 🏅", "{u}, app que usas mais? 📱",
+    "{u}, se mudasses o teu nome, qual seria? 📛", "{u}, sobremesa irresistível? 🍰",
+    "{u}, campo ou cidade? 🚜", "{u}, tua rotina matinal ideal? ☀️",
+    "{u}, como desestressas? 🧘", "{u}, peça de roupa favorita? 👕",
+    "{u}, se fosses um sabor de gelado? 🍦", "{u}, tradição de família favorita? 👨‍👩‍👧‍👦",
+    "{u}, o que te faz sentir em casa? 🏠", "{u}, melhor conselho que já recebeste? 🗣️",
+    "{u}, planear ou improvisar? 🗓️", "{u}, desporto favorito? ⚽",
+    "{u}, em que época gostavas de ter vivido? ⏳", "{u}, tua maior inspiração? ⭐"
 ]
 
 HISTORIA_THEOG = [
@@ -150,7 +191,8 @@ HISTORIA_THEOG = [
     "Já o biohazard descreve o canal como a sua 'segunda sala de estar'. E que sala!",
     "Um espaço de conforto, boa companhia e liberdade absoluta para comer pipocas de boca aberta sem escandalizar ninguém.",
     "É ali que as segundas-feiras começam menos segunda-feira e mais sexta à noite improvisada.",
-    "E no meio das conversas e gargalhadas, deixa o que realmente importa: 'Gosto muito de vocês.' Porque no fundo, é isso que faz a sala ser casa.",
+    "E no meio das conversas e gargalhadas, deixa o que realmente importa: 'Gosto muito de vocês.'",
+    "Porque no fundo, é isso que faz a sala ser casa.",
     "Para a CutxiiiPoint, o #TheOG é um paradoxo bonito: um quarto escuro, mas iluminado.",
     "Um espaço que aquece quando faz frio e alegra quando é preciso.",
     "Não pelas paredes digitais, mas pelas pessoas — originais, improváveis, únicas. Um canal amigo… mas só o é porque quem lá está faz questão de o ser.",
@@ -206,7 +248,7 @@ PRENDAS = [
     "oferece uma t-shirt do #TheOG a {u}! 👕", "entrega um iogurte a {u}! 🍦",
     "oferece uma grade de minis a {u}! 🍻", "dá um comando do tempo a {u}! ⏳",
     "oferece uma bola assinada a {u}! ⚽", "entrega um perfume a {u}! 🧴",
-    "oferece uma caixa de ferramentas a {u}! ", "dá um passeio de burro a {u}! 🫏",
+    "oferece uma caixa de ferramentas a {u}! 🧰", "dá um passeio de burro a {u}! 🫏",
     "oferece um mapa do tesouro a {u}! 🗺️", "entrega uma melancia a {u}! 🍉",
     "oferece um presunto a {u}! 🍖", "dá uma pulseira da amizade a {u}! 🤝",
     "oferece uma lareira a {u}! 🔥", "entrega um voucher de spa a {u}! 🧖",
@@ -221,7 +263,18 @@ PRENDAS = [
     "oferece um boneco do Santo António a {u}! ⛪", "entrega um chouriço para assar a {u}! 🔥",
     "oferece um comando de ar condicionado a {u}! ❄️", "dá um peluche de polvo a {u}! 🐙",
     "oferece uma miniatura de um elétrico de Lisboa a {u}! 🚋", "entrega um voucher de tatuagem a {u}! 🖋️",
-    "oferece um bilhete para o Fado a {u}! 🎸", "dá uma lanterna mágica a {u}! 🪄"
+    "oferece um bilhete para o Fado a {u}! 🎸", "dá uma lanterna mágica a {u}! 🪄",
+    # +50 NOVAS
+    "drone de última geração a {u}! 🚁", "cruzeiro no Douro a {u}! 🚢", "comando de portão a {u}! 📟", "cabaz de Natal gigante a {u}! 🧺", "bilhete Rock in Rio a {u}! 🎸",
+    "relógio de ouro a {u}! ⌚", "pernil de porco assado a {u}! 🍖", "bilhete para Havai a {u}! 🌴", "voucher de 50€ em bifanas a {u}! 🥪", "computador quântico a {u}! 💻",
+    "garrafa de champanhe a {u}! 🍾", "casaco de pele sintética a {u}! 🧥", "sapatilhas de marca a {u}! 👟", "horta vertical a {u}! 🪴", "bilhete Fórmula 1 a {u}! 🏎️",
+    "moedas antigas a {u}! 🪙", "queijo artesanal da ilha a {u}! 🧀", "massagem tailandesa a {u}! 💆", "tenda de campismo a {u}! ⛺", "rádio vintage a {u}! 📻",
+    "kit de pintura a óleo a {u}! 🎨", "viagem de balão a {u}! 🎈", "chás do mundo a {u}! 🍵", "prancha de surf profissional a {u}! 🏄", "jantar romântico a {u}! 🕯️",
+    "telescópio espacial a {u}! 🛰️", "curso de culinária a {u}! 👨‍🍳", "bilhete para ópera a {u}! 🎼", "canivete suíço a {u}! 🔪", "tapete voador a {u}! 🧞",
+    "banho de espuma a {u}! 🛁", "lanterna de campismo a {u}! 🔦", "caneta em ouro a {u}! 🖋️", "mapa mundi de raspar a {u}! 🗺️", "kit jardinagem a {u}! 🧑‍🌾",
+    "assinatura streaming a {u}! 📺", "pack experiências radicais a {u}! 🪂", "escultura de gelo a {u}! 🧊", "bonsai milenar a {u}! 🌳", "voucher paraquedismo a {u}! 🪂",
+    "vinhos premiados a {u}! 🍷", "caixa música antiga a {u}! 🎵", "passeio helicóptero a {u}! 🚁", "jogo tabuleiro épico a {u}! 🎲", "robe de seda a {u}! 🥋",
+    "kit astronomia a {u}! 🌌", "perfume de luxo a {u}! 🧴", "convite festa secreta a {u}! 🎟️", "manta elétrica a {u}! ⚡", "vale dia de folga a {u}! 🛌"
 ]
 
 LAPADAS = [
@@ -284,7 +337,18 @@ LAPADAS = [
     "manda um ananás dos Açores à testa de {u}!", "dá um encontrão em {u} que o faz saltar o muro!",
     "atira um molho de lenha a {u}!", "dá uma sapatada em {u} com uma crocs!",
     "atira uma lata de tinta azul a {u}!", "manda {u} ir catar macacos!",
-    "atira um saco de areia de obra a {u}!", "dá uma galheta em {u} com um naco de vitela!"
+    "atira um saco de areia de obra a {u}!", "dá uma galheta em {u} com um naco de vitela!",
+    # +50 NOVAS
+    "malagueta nos olhos de {u}!", "cacetada com rolo de papel higiénico em {u}!", "balde de lama a {u}!", "luva de forno em {u}!", "saco de gelo a {u}!",
+    "empurrão para poça a {u}!", "caixa de ovos a {u}!", "palmada com espátula em {u}!", "molho de grama a {u}!", "joelhada no rabo de {u}!",
+    "despertador a tocar a {u}!", "chinelo de praia em {u}!", "confetes que colam a {u}!", "rasteira na discoteca a {u}!", "esponja molhada a {u}!",
+    "sapato de palhaço em {u}!", "balde de pipocas a {u}!", "peixe-espada congelado em {u}!", "garrafa de água aberta a {u}!", "safanão tonto em {u}!",
+    "almofada com farinha a {u}!", "martelada de borracha em {u}!", "rede de pesca em {u}!", "chicotada com cinto em {u}!", "balde de tinta invisível a {u}!",
+    "tábua de passar em {u}!", "molho de urtigas frescas a {u}!", "rasteira no gelo a {u}!", "sapato velho a {u}!", "bife de vaca em {u}!",
+    "bacia de leite a {u}!", "soco na almofada em {u}!", "caneca de café frio a {u}!", "jornal enrolado em {u}!", "saco de feijão a {u}!",
+    "joelhada na canela de {u}!", "melancia podre a {u}!", "fatia de pizza em {u}!", "molho de cebolas a {u}!", "encontrão contra a porta em {u}!",
+    "balde de sabão a {u}!", "molho de salsa em {u}!", "pipocas salgadas a {u}!", "rasteira na areia a {u}!", "livro de 1000 páginas a {u}!",
+    "fatia de pão em {u}!", "garrafa de refrigerante a {u}!", "calduço que faz cair {u}!", "chaves de fendas a {u}!", "bota de cano alto em {u}!"
 ]
 
 OG_EVASIVE = [
@@ -345,7 +409,18 @@ OG_EVASIVE = [
     "Estou a medir a velocidade da luz com uma régua.", "Fui ver se o vento dobra as esquinas.",
     "Estou a tentar perceber porque é que a água molha.", "Fui ali ao Porto buscar umas tripas.",
     "Estou a ver se as formigas fazem greve.", "Estou a tentar ler um código QR com os olhos.",
-    "Fui ver se o mar tem degraus.", "Estou a tentar ser um Bot de elite."
+    "Fui ver se o mar tem degraus.", "Estou a tentar ser um Bot de elite.",
+    # +50 NOVAS
+    "dobrar o tempo com uma colher.", "ver se a grama cresce no deserto.", "organizar nuvens.", "ver se vento tem cor.", "falar com golfinhos.",
+    "ver se a lua tem Wi-Fi.", "contar segundos para o fim do mundo.", "ver se o sol precisa de óculos.", "porque é que o céu é azul.", "terra redonda.",
+    "falar com o meu eu do passado.", "ver se futuro é brilhante.", "decorar estrelas.", "ver se chuva tem sabor.", "voar sem asas.",
+    "mar tem ouvidos.", "sentido da vida.", "nada existe.", "super-herói digital.", "fogo tem sombra.",
+    "respirar debaixo de água.", "gelo queima.", "falar com pedras.", "areia tem segredos.", "ser uma árvore.",
+    "tempo tem fim.", "língua dos gatos.", "fim do arco-íris.", "estrela cadente.", "espaço infinito.",
+    "ler pensamentos.", "silêncio faz barulho.", "mestre Jedi.", "força está comigo.", "viajar no tempo.",
+    "passado mudado.", "ser um dragão.", "fogo frio.", "falar com o vento.", "vento tem casa.",
+    "nuvem passageira.", "nuvem tem chuva.", "ser invisível.", "sombra tem corpo.", "astronauta de sofá.",
+    "lua de queijo suíço.", "falar com o sol.", "sol tem sono.", "bot filósofo.", "verdade dói."
 ]
 
 PUXAR_CONVERSA = [
@@ -361,12 +436,12 @@ PUXAR_CONVERSA = [
     "{u}, estás a tentar bater o recorde de inatividade?", "Hey {u}, bota aí um smile pelo menos!",
     "Alô {u}, a terra chama!", "Mexe-te {u}!", "Diz um número {u}!",
     "Bota conversa {u}!", "Fala {u}!", "O {u} fugiu?", "{u}, anda cá!",
-    "O que dizes {u}?", "Acorda {u}!", "Solta a língua {u}!", "Dá um sinal {u}!",
+    "O que dizes {u}?", "Acorda {u}!", "Solta la língua {u}!", "Dá um sinal {u}!",
     "Aparece {u}!", "Vamos {u}!", "Anima isto {u}!", "Grita {u}!",
     "Canta {u}!", "Escreve {u}!", "Dá-lhe {u}!", "Bora {u}!", "Força {u}!",
     "Vai {u}!", "Toca {u}!", "Puxa {u}!", "Diz {u}!", "Mexe {u}!",
     "Siga {u}!", "Bora lá {u}!", "Dale {u}!", "Ri {u}!", "Vive {u}!",
-    "Sente {u}!", "Olha {u}!", "Ouve {u}!", "Corre {u}!", "Salta {u}!",
+    "Sente {u}!", "Olha {u}!", "Ouve {u}!", "Run {u}!", "Salta {u}!",
     "{u}, se estivesses num deserto, o que dirias?", "{u}, estás à espera de um convite em papel?",
     "{u}, o teu teclado avariou?", "{u}, estás a pensar na vida?",
     "{u}, a malta quer ouvir-te!", "{u}, o que contas de novo?",
@@ -395,7 +470,18 @@ PUXAR_CONVERSA = [
     "Bora lá, {u}, anima-te!", "{u}, o que almoçaste hoje?",
     "Olha o {u} ali, todo pimpão e calado!", "{u}, solta um grito!",
     "{u}, se o teclado falasse, o que diria de ti?", "O {u} está em modo meditação?",
-    "{u}, manda aí um abraço ao canal!", "{u}, estás a ler ou a dormir em cima do rato?"
+    "O {u} está em modo zen?", "Manda aí um abraço, {u}!",
+    # +50 NOVAS
+    "vê o canal passar {u}!", "bebeu água {u}?", "parece um quadro {u}!", "manda emoji {u}!", "animal se fosses {u}?",
+    "lê os termos de serviço {u}?", "fala ou cala-te {u}!", "ouve o quê {u}?", "comprar tabaco {u}?", "planos fim de semana {u}?",
+    "mensagem codificada {u}!", "filme preferido {u}?", "ninja {u}?", "comida favorita {u}?", "estou aqui {u}!",
+    "super-herói {u}?", "hibernar {u}?", "lugar favorito mundo {u}?", "alegria {u}!", "música se fosses {u}?",
+    "contar carneiros {u}?", "maior sonho {u}?", "ideia maluca {u}!", "objeto se fosses {u}?", "olhar teto {u}?",
+    "estação favorita {u}?", "segredo {u}!", "cor se fosses {u}?", "meditar {u}?", "hobby favorito {u}?",
+    "grito virtual {u}!", "desporto se fosses {u}?", "lê sorte {u}?", "signo {u}?", "pensamento dia {u}!",
+    "livro se fosses {u}?", "vê se chove {u}?", "viagem sonho {u}?", "presente! {u}", "planeta se fosses {u}?",
+    "ouvir estrelas {u}?", "feriado favorito {u}?", "sinal fumo {u}!", "flor se fosses {u}?", "invisível {u}?",
+    "doce favorito {u}?", "abraço urso {u}!", "carro se fosses {u}?", "vê tempo passar {u}?", "lembrança feliz {u}?"
 ]
 
 REFORCO_POSITIVO = [
@@ -404,11 +490,15 @@ REFORCO_POSITIVO = [
     "Partilhem alegria e bons momentos! 🌟", "É um orgulho moderar este grupo fantástico. 🎖️",
     "Sintam-se orgulhosos de estar aqui! 🌈", "Energia positiva a carregar... 🔋",
     "Vocês são os melhores utilizadores de sempre! ⭐", "Obrigado por estarem presentes e darem vida a isto. 🙏",
-    "O canal está com uma vibração incrível hoje! 🌊", "Paz e amor no #TheOG, sempre. ✌️❤️",
-    "Somos uma família unida pelo IRC! 👨‍👩... (Truncado para brevidade, mas segue a lista completa de reforços)"
+    "O canal está com uma vibração incrível hoje! 🌊", "Paz e amor no #TheOG, sempre. ✌️❤️"
 ]
 
-USER_GREETINGS = ["Boas-vindas {u}! 😊", "Olá {u}! Estás em casa.", "Olha quem é ele! Bem-vindo, {u}!"]
+USER_GREETINGS = [
+    "Boas-vindas {u}! 😊", 
+    "Olá {u}! Este canal é a tua casa.", 
+    "Que bom ver-te por aqui, {u}! Sente-te à vontade.",
+    "Olha quem chegou! Bem-vinda a pessoa {u}! 👋"
+]
 
 # --- LÓGICA DO BOT ---
 
@@ -441,8 +531,7 @@ def handle_interaction(user, message, is_private, irc_socket):
                 "!pergunta <texto> - Faz uma pergunta à minha IA.",
                 "!lapada <nick> - Dá uma lapada castiça a alguém.",
                 "!prenda <nick> - Oferece um miminho a alguém.",
-                "!stalker <nick> - Faz um relatório discreto sobre o utilizador.",
-                "!anedota - Conto uma anedota de rir e chorar por mais."
+                "!stalker <nick> - Relatório avançado e discreto (PVT)."
             ]
             for c in comandos:
                 send_raw(irc_socket, f"PRIVMSG {user} :{c}")
@@ -458,25 +547,17 @@ def handle_interaction(user, message, is_private, irc_socket):
                 time.sleep(1.8)
             return True
 
-        if msg == "!anedota":
-            dest = user
-            ativos = [n for n in list(CHANNEL_USERS) if n.lower() not in BOT_FILTER and n != user]
-            if ativos:
-                dest = random.choice(ativos)
-            send_raw(irc_socket, f"PRIVMSG {CHANNEL} :{dest}, ouve esta que o {user} pediu: {random.choice(ANEDOTAS)}")
-            return True
-            
         if msg.startswith("!pergunta"):
             q = message[10:].strip()
             if q:
                 threading.Thread(target=lambda: send_raw(irc_socket, f"PRIVMSG {target} :{user}: {ask_hugging_face(q)[:400]}")).start()
             return True
-            
+
         if msg.startswith("!lapada"):
             dest = message.split()[1] if len(message.split()) > 1 else user
             send_raw(irc_socket, f"PRIVMSG {CHANNEL} :\x01ACTION {random.choice(LAPADAS).format(u=dest)} (por {user})\x01")
             return True
-            
+
         if msg.startswith("!prenda"):
             dest = message.split()[1] if len(message.split()) > 1 else user
             send_raw(irc_socket, f"PRIVMSG {CHANNEL} :\x01ACTION {random.choice(PRENDAS).format(u=dest)} (cortesia de {user})\x01")
@@ -486,7 +567,7 @@ def handle_interaction(user, message, is_private, irc_socket):
             partes = message.split()
             if len(partes) > 1:
                 alvo = partes[1]
-                STALKER_REQUESTS[alvo.lower()] = user 
+                STALKER_REQUESTS[alvo.lower()] = {"solicitante": user, "info": {}}
                 send_raw(irc_socket, f"WHOIS {alvo}")
             return True
 
@@ -499,99 +580,106 @@ def loops_fundo(sock):
     while True:
         time.sleep(1200) # 20 min
         ativos = [n for n in list(CHANNEL_USERS) if n.lower() not in BOT_FILTER]
-        
         if ativos:
             choice = random.random()
-            if choice < 0.4:
+            u = random.choice(ativos)
+            if choice < 0.2:
                 send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(REFORCO_POSITIVO)}")
-            elif choice < 0.7:
-                u = random.choice(ativos)
+            elif choice < 0.4:
                 send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(PUXAR_CONVERSA).format(u=u)}")
+            elif choice < 0.7:
+                send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(PERGUNTAS_INTERACAO).format(u=u)}")
             else:
-                u = random.choice(ativos)
-                send_raw(sock, f"PRIVMSG {CHANNEL} :Ó {u}, ouve lá esta: {random.choice(ANEDOTAS)}")
+                send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(ANEDOTAS)}")
 
 def parse_whois(line, irc):
     partes = line.split()
     if len(partes) < 4: return
     alvo_nick = partes[3].lower()
-    
+
     if alvo_nick in STALKER_REQUESTS:
-        solicitante = STALKER_REQUESTS[alvo_nick]
+        sol = STALKER_REQUESTS[alvo_nick]["solicitante"]
+        
         if " 311 " in line:
-            realname = line.split(" :", 1)[1] if " :" in line else "Desconhecido"
-            send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] Alvo: {partes[3]} | Host: {partes[4]}@{partes[5]} | Nome: {realname}")
+            STALKER_REQUESTS[alvo_nick]["info"]["host"] = f"{partes[4]}@{partes[5]}"
+            STALKER_REQUESTS[alvo_nick]["info"]["real"] = line.split(" :", 1)[1] if " :" in line else "???"
+        elif " 319 " in line:
+            STALKER_REQUESTS[alvo_nick]["info"]["canais"] = line.split(" :", 1)[1]
         elif " 301 " in line:
-            away_msg = line.split(" :", 1)[1]
-            send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] Estado: AWAY (Mensagem: {away_msg})")
+            STALKER_REQUESTS[alvo_nick]["info"]["away"] = line.split(" :", 1)[1]
         elif " 317 " in line:
             idle = int(partes[4])
-            signon = datetime.fromtimestamp(int(partes[5])).strftime('%d/%m/%Y %H:%M:%S')
-            send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] Inativo há: {idle}s | Entrou em: {signon}")
+            STALKER_REQUESTS[alvo_nick]["info"]["idle"] = f"{idle // 60}m {idle % 60}s"
         elif " 318 " in line:
-            send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] Fim do relatório de {partes[3]}.")
+            inf = STALKER_REQUESTS[alvo_nick]["info"]
+            status = "\x033[ESTÁ ONLINE]\x03"
+            away_str = f" | Estado: {inf.get('away', 'Ativo')}"
+            idle_str = f" | Idle: {inf.get('idle', '0s')}"
+            send_raw(irc, f"PRIVMSG {sol} :[STALKER] Relatório de {partes[3]} {status}")
+            send_raw(irc, f"PRIVMSG {sol} :> Host: {inf.get('host', 'N/A')}{away_str}{idle_str}")
+            send_raw(irc, f"PRIVMSG {sol} :> Canais: {inf.get('canais', 'N/A')}")
             del STALKER_REQUESTS[alvo_nick]
         elif " 401 " in line:
-            send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] O utilizador {partes[3]} parece estar offline.")
+            send_raw(irc, f"PRIVMSG {sol} :[STALKER] Alvo {partes[3]} está \x034[OFFLINE]\x03.")
             del STALKER_REQUESTS[alvo_nick]
 
 def run_irc_bot():
     while True:
         try:
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            irc.settimeout(300) 
+            irc.settimeout(300)
             irc.connect((SERVER, PORT))
             send_raw(irc, f"NICK {NICK}")
             send_raw(irc, f"USER {NICK} 8 * :TheOG Bot")
             threads_started = False
-            
+
             while True:
                 try:
                     data = irc.recv(4096).decode("utf-8", errors="ignore")
                 except socket.timeout:
                     send_raw(irc, "PING :keepalive")
                     continue
-                
+
                 if not data: break
                 for line in data.split("\r\n"):
                     if not line: continue
                     if "PING" in line: send_raw(irc, f"PONG {line.split()[1]}")
-                    if any(num in line for num in [" 311 ", " 317 ", " 301 ", " 318 ", " 401 "]):
+                    
+                    if any(num in line for num in [" 311 ", " 319 ", " 317 ", " 301 ", " 318 ", " 401 "]):
                         parse_whois(line, irc)
-                    if "376" in line: 
+                    
+                    if "376" in line:
                         send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         send_raw(irc, f"JOIN {CHANNEL}")
-                        send_raw(irc, f"PRIVMSG {CHANNEL} :Olá a todos! O TheOG chegou para animar o #TheOG! 💛")
                         if not threads_started:
                             threading.Thread(target=loops_fundo, args=(irc,), daemon=True).start()
                             threads_started = True
+
                     if " JOIN " in line:
                         u = line.split('!')[0][1:]
                         if u != NICK:
                             CHANNEL_USERS.add(u)
-                            LAST_SEEN[u] = time.time()
                             send_raw(irc, f"PRIVMSG {CHANNEL} :{random.choice(USER_GREETINGS).format(u=u)}")
                         else: send_raw(irc, f"NAMES {CHANNEL}")
-                    if " 353 " in line: 
+
+                    if " 353 " in line:
                         names = line.split(" :")[1].split()
                         for n in names:
                             clean_n = n.lstrip('@+&%~')
                             if clean_n != NICK: CHANNEL_USERS.add(clean_n)
+
                     if " PART " in line or " QUIT " in line:
                         u = line.split('!')[0][1:]
                         if u in CHANNEL_USERS: CHANNEL_USERS.remove(u)
-                    if " KICK " in line:
-                        partes = line.split()
-                        u_kickado = partes[3]
-                        if u_kickado in CHANNEL_USERS: CHANNEL_USERS.remove(u_kickado)
+
                     if " PRIVMSG " in line:
                         user = line.split('!')[0][1:]
-                        target = line.split(' PRIVMSG ')[1].split(' :')[0]
+                        target_msg = line.split(' PRIVMSG ')[1].split(' :')[0]
                         message = line.split(' PRIVMSG ')[1].split(' :', 1)[1]
-                        is_private = target == NICK
+                        is_private = target_msg == NICK
                         handle_interaction(user, message, is_private, irc)
+
         except Exception as e:
-            print(f"Erro na conexão: {e}. A reiniciar em 15 segundos...")
             time.sleep(15)
 
 if __name__ == "__main__":
