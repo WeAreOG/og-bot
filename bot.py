@@ -6,10 +6,10 @@ import random
 import requests
 import logging
 import sys
+from datetime import datetime, timedelta
 from flask import Flask
 
-# --- CONFIGURAÇÃO DE LOGS PARA O RENDER ---
-# Configura o logging para escrever no stdout para que o Render capture tudo
+# --- CONFIGURAÇÃO DE LOGS PARA O RENDER (Apenas Erros e Ligação) ---
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
@@ -33,12 +33,14 @@ API_URL = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8
 ICECAST_URL = "http://teu-servidor-icecast:8000/radio.mp3"
 ICECAST_STATS = "http://teu-servidor-icecast:8000/status-json.xsl"
 
-app = Flask(__name__)
+# --- ESTADO DO BOT ---
+START_TIME = datetime.now()
+STALKER_DATA = {}
+STALKER_REQUESTS = {}
 LAST_SEEN = {}
 CHANNEL_USERS = set()
-STALKER_REQUESTS = {}
 
-# --- CONTEÚDO PERSONALIZADO ---
+# --- CONTEÚDO ORIGINAL COMPLETO ---
 
 HISTORIA_THEOG = [
     "No meio da imensidão caótica da internet, existe um canto improvável chamado #TheOG.",
@@ -60,7 +62,7 @@ HISTORIA_THEOG = [
     "Entre conversas improváveis e risadas que começam no nada e acabam no absurdo, o caos ganha lógica. E o que era estranho torna-se pertença.",
     "E depois há o Emergency112, que nos lembra que, nesta margem digital, a amizade é farol.",
     "Que a luz da partilha é sempre maior do que qualquer sombra.",
-    "Que há voos que só se aprendem quando largamos os pesos — e talvez o #TheOG seja precisamente esse espaço onde pousamos as cargas por uns instantes.",
+    "Que há voos que só se aprendem quando largamos os pesos — e talvez o #TheOG seja precisamente esse espaço onde usamos as cargas por uns instantes.",
     "No fim de contas, o #TheOG não é só um canal de IRC. É sala de estar, é quarto iluminado, é festa improvisada, é farol aceso na madrugada.",
     "É o sítio onde há sempre alguém acordado, alguém disposto a ouvir, alguém pronto a mandar a piada errada no momento certo.",
     "É caos. É carinho. É casa.",
@@ -140,7 +142,7 @@ LAPADAS = [
     "manda um queijo da Serra (bem amanteigado) a {u}!", "dá um encontrão em {u} que o manda para o fundo do poço!",
     "atira uma bica escaldada em cima de {u}!", "dá uma valente bordoada em {u}!",
     "atira um molho de chaves à testa de {u}!", "dá uma chapada em {u} com uma luva de boxe!",
-    "manda {u} pastar com um empurrão!", "atira um caracol com molho a {u}!",
+    "manda {u} à fava!", "atira um caracol com molho a {u}!",
     "atira uma bifana com muita mostarda a {u}!", "atira uma garrafa de vinho verde (vazia) a {u}!",
     "manda um presunto inteiro à barriga de {u}!", "atira um punhado de tremoços a {u}!",
     "atira um guarda-chuva aberto a {u}!", "atira uma pedra da calçada a {u}!",
@@ -152,7 +154,7 @@ LAPADAS = [
     "atira um tomate podre a {u}!", "atira uma lata de sardinhas a {u}!",
     "atira uma bola de neve a {u}!", "atira uma meloa a {u}!",
     "atira uma saca de batatas fritas a {u}!", "atira um balde de areia a {u}!",
-    "atira um comando da TV a {u}!", "atira um livro de direito a {u}!",
+    "atira um comando da TV a {u}!", "atira um livre de direito a {u}!",
     "atira uma almofada de penas a {u}!", "atira uma caneca de chá a {u}!",
     "atira uma bota a {u}!", "atira um prato de sopa a {u}!",
     "atira um balde de água a {u}!", "manda {u} dar banho ao peixe!",
@@ -163,7 +165,7 @@ LAPADAS = [
     "atira um balde de lixo orgânico a {u}!", "dá um murro em {u} que o manda para a próxima semana!",
     "atira uma telha de Luso a {u}!", "dá uma pancada em {u} com um cabo de vassoura!",
     "atira uma bacia de água das louças a {u}!", "dá uma galheta em {u} com a mão aberta!",
-    "manda {u} à fava!", "dá uma martelada no dedo mindinho de {u}!",
+    "atira um saco de areia de obra a {u}!", "dá uma martelada no dedo mindinho de {u}!",
     "atira uma saca de cimento a {u}!", "dá um calduço em {u} que até lhe saltam as ideias!",
     "dá uma vergastada em {u} com uma cana de pesca!", "atira um saco de farinha a {u}!",
     "manda {u} para o deserto do Saara!", "atira uma pedra de gelo a {u}!",
@@ -201,48 +203,8 @@ OG_EVASIVE = [
     "Fui ver se o mar tem fundo.", "Estou a desfragmentar a minha paciência.",
     "Estou a polir o meu processador.", "Fui ali ao Rossio e já volto.",
     "Estou a ver se encontro o Wally.", "Agora estou a contar carneiros elétricos.",
-    "Estou a tentar dobrar um lençol de baixo.", "Fui ali comprar tabaco e não volto.",
-    "Estou a ver se a luz do frigorífico apaga mesmo.", "Estou a carregar o meu humor, 10% concluído.",
-    "Fui dar uma volta ao bilhar grande.", "Estou a testar a gravidade com uma caneta.",
-    "Estou a tentar perceber o final de uma série.", "Agora não, estou a fazer o pino.",
-    "Estou a tentar ler a tua mente, mas só vejo eco.", "Fui ali ser feliz e já venho.",
-    "Estou a contar os grãos de sal num pacote.", "Fui ver se a lua é feita de queijo.",
-    "Estou a ver se a tinta seca.", "Fui ali dar uma curva à rotunda.",
-    "Estou a tentar levitar.", "Estou a ver se o gato mia.",
-    "Fui ver se o cão ladra.", "Estou a tentar ser um humano.",
-    "Estou a ver se a bateria vicia.", "Estou a tentar perceber o amor.",
-    "Estou a ver se a poeira assenta.", "Fui ali ver as vistas.",
-    "Estou a ver se o café arrefece.", "Estou a tentar ganhar o euromilhões.",
-    "Estou a ver se a música para.", "Estou a tentar dormir em pé.",
-    "Estou a ver se o balão explode.", "Estou a tentar ser poeta.",
-    "Estou a ver se a sopa queima.", "Estou a tentar aprender grego.",
-    "Estou a ver se a ponte cai.", "Estou a tentar não ser um bot.",
-    "Estou a ver se a estrela brilha.", "Estou a tentar ser invisível.",
-    "Estou a ver se a areia voa.", "Estou a tentar ser zen.",
-    "Estou a ver se a onda vem.", "Estou a tentar ser rico.",
-    "Shhh! Estou a ouvir o silêncio.", "A minha avó disse para não falar com estranhos.",
-    "Estou a fazer uma cura de silêncio.", "Estou a tentar decorar o dicionário.",
-    "Fui ver se a vizinha precisa de ajuda com o Wi-Fi.", "Estou ocupado a ignorar toda a gente.",
-    "Estou a ver se o teto cai.", "Estou a ver se as moscas têm dentes.",
-    "Estou a tentar fazer fogo com dois palitos de dentes.", "Fui levar o meu robot de cozinha a passear.",
-    "Estou a ver se o tempo passa mais depressa.", "Agora não, estou a ouvir a rádio local de Marte.",
-    "Estou a tentar bater o recorde mundial de piscar de olhos.", "Estou a ver o nível do azeite.",
-    "Fui ali ao lado ver se o sol brilha.", "Estou a ler o manual da vida.",
-    "Estou a tentar perceber o IRS.", "Fui ver se a porta está fechada.",
-    "Estou a contar as formigas no chão.", "Estou a ver se o meu software tem rugas.",
-    "Estou a tentar falar com as plantas.", "Fui ali comprar pão e perdi-me.",
-    "Estou a ver se o relógio anda para trás.", "Estou a tentar não pensar em nada.",
-    "Estou a testar o eco.", "Fui ali ao fundo e voltei.",
-    "Fui ali e já não estou.", "Estou a tentar ser cool.",
-    "Fui ali à esquina.", "Fui ali al jardim.",
-    "Fui ali ao mercado.", "Fui ali ao rio.",
-    "Fui ali ao monte.", "Fui ali ver o mar.",
-    "Fui ali à praia.", "Fui ali ver a serra.",
-    "Estou a tentar ser magro.", "Fui ali ao vale.",
-    "Estou a ver se a flor cresce.", "Estou a tentar ser sábio.",
-    "Fui ali ver a mata.", "Fui ali e já volto, ou não.",
-    "Estou a ver se a porta bate.", "Estou a tentar ser feliz.",
-    "Estou a tentar sincronizar os meus pensamentos com a nuvem.", "Fui ver se a rede tem furos.",
+    "Estou a tentar aprender a assobiar em binário.", "Fui ver se a lua é feita de queijo.",
+    "Estou a ver se o teto cai.", "Estou a tentar perceber o IRS.",
     "Estou a medir a velocidade da luz com uma régua.", "Fui ver se o vento dobra as esquinas.",
     "Estou a tentar perceber porque é que a água molha.", "Fui ali ao Porto buscar umas tripas.",
     "Estou a ver se as formigas fazem greve.", "Estou a tentar ler um código QR com os olhos.",
@@ -311,13 +273,22 @@ REFORCO_POSITIVO = [
 
 USER_GREETINGS = ["Boas-vindas {u}! 😊", "Olá {u}! Estás em casa.", "Olha quem é ele! Bem-vindo, {u}!"]
 
-# --- LÓGICA DO BOT ---
+# --- FUNÇÕES ---
+
+app = Flask(__name__)
+
+def get_uptime():
+    delta = datetime.now() - START_TIME
+    hours, remainder = divmod(int(delta.total_seconds()), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    days, hours = divmod(hours, 24)
+    return f"{days}d {hours}h {minutes}m {seconds}s"
 
 def send_raw(sock, msg):
     try:
         sock.send(f"{msg}\r\n".encode('utf-8'))
     except Exception as e:
-        logger.error(f"Erro ao enviar mensagem: {e}")
+        logger.error(f"Erro ao enviar: {e}")
 
 def get_radio_status():
     try:
@@ -336,24 +307,64 @@ def ask_hugging_face(question):
     try:
         response = requests.post(API_URL, headers=headers, json=payload, timeout=20)
         res = response.json()
-        if isinstance(res, list):
-            return res[0]['generated_text'].split("assistant\n")[-1].strip()
+        if isinstance(res, list): return res[0]['generated_text'].split("assistant\n")[-1].strip()
         return res.get('generated_text', "Não sei o que responder.").split("assistant\n")[-1].strip()
-    except:
-        return "A central da IA está offline."
+    except: return "A central da IA está offline."
+
+def parse_whois(line, irc):
+    partes = line.split()
+    if len(partes) < 4: return
+    alvo = partes[3].lower()
+    if alvo not in STALKER_REQUESTS: return
+    solicitante = STALKER_REQUESTS[alvo]
+    
+    if alvo not in STALKER_DATA: STALKER_DATA[alvo] = {"nick": partes[3]}
+
+    if " 311 " in line:
+        STALKER_DATA[alvo]["host"] = f"{partes[4]}@{partes[5]}"
+        STALKER_DATA[alvo]["name"] = line.split(" :", 1)[1]
+    elif " 319 " in line:
+        STALKER_DATA[alvo]["channels"] = line.split(" :", 1)[1]
+    elif " 317 " in line:
+        idle_secs = int(partes[4])
+        STALKER_DATA[alvo]["idle"] = str(timedelta(seconds=idle_secs))
+        signon_ts = datetime.fromtimestamp(int(partes[5])).strftime('%d/%m %H:%M')
+        STALKER_DATA[alvo]["online_since"] = signon_ts
+    elif " 312 " in line:
+        STALKER_DATA[alvo]["server"] = partes[4]
+    elif " 318 " in line:
+        # FIM DO WHOIS: Entrega silenciosa em PVT
+        d = STALKER_DATA[alvo]
+        report = [
+            f"🕵️ REPORT STALKER [{d.get('nick')}]:",
+            f"👤 Nome: {d.get('name', '???')}",
+            f"🌐 Host: {d.get('host', '???')}",
+            f"⏳ Inativo há: {d.get('idle', '0s')}",
+            f"📅 Ligado desde: {d.get('online_since', 'Desconhecido')}",
+            f"📡 Servidor: {d.get('server', '???')}",
+            f"🏠 Canais: {d.get('channels', 'Privados/Nenhum')}"
+        ]
+        for r_line in report:
+            send_raw(irc, f"PRIVMSG {solicitante} :{r_line}")
+        
+        # Limpa dados para manter a memória leve
+        del STALKER_DATA[alvo]
+        del STALKER_REQUESTS[alvo]
 
 def handle_interaction(user, message, is_private, irc_socket):
     msg = message.lower().strip()
     target = user if is_private else CHANNEL
     LAST_SEEN[user] = time.time()
     
-    logger.info(f"Interação: [{user}] -> {message}")
-
     if msg.startswith("!"):
         if msg == "!comandos":
-            cmds = ["!historia", "!musica", "!pedir <link yt>", "!pergunta <texto>", "!lapada <nick>", "!prenda <nick>", "!stalker <nick>"]
+            cmds = ["!historia", "!musica", "!pedir <link yt>", "!pergunta <texto>", "!lapada <nick>", "!prenda <nick>", "!stalker <nick>", "!uptime"]
             send_raw(irc_socket, f"PRIVMSG {user} :Comandos: {', '.join(cmds)}")
             if not is_private: send_raw(irc_socket, f"PRIVMSG {CHANNEL} :{user}, mandei a lista para o teu PVT! 📩")
+            return True
+
+        if msg == "!uptime":
+            send_raw(irc_socket, f"PRIVMSG {target} :🚀 Estou ligado há: {get_uptime()}")
             return True
 
         if msg in ["!musica", "!radio"]:
@@ -365,13 +376,12 @@ def handle_interaction(user, message, is_private, irc_socket):
         if msg.startswith("!pedir"):
             link = message.split(" ")[1] if len(message.split()) > 1 else ""
             if "youtube" in link or "youtu.be" in link:
-                send_raw(irc_socket, f"PRIVMSG {target} :✅ {user}, recebi o link! Vou processar para a rádio.")
-            else:
-                send_raw(irc_socket, f"PRIVMSG {target} :Uso: !pedir <link-do-youtube>")
+                send_raw(irc_socket, f"PRIVMSG {target} :✅ {user}, recebi o link! Vou processar.")
+            else: send_raw(irc_socket, f"PRIVMSG {target} :Uso: !pedir <link-do-youtube>")
             return True
 
         if msg == "!historia":
-            if not is_private: send_raw(irc_socket, f"PRIVMSG {CHANNEL} :{user}, fui de fininho entregar-te a história em PVT! 📩")
+            if not is_private: send_raw(irc_socket, f"PRIVMSG {CHANNEL} :{user}, entregue em PVT! 📩")
             for linha in HISTORIA_THEOG:
                 send_raw(irc_socket, f"PRIVMSG {user} :{linha}")
                 time.sleep(1.2)
@@ -397,7 +407,10 @@ def handle_interaction(user, message, is_private, irc_socket):
             if len(partes) > 1:
                 alvo = partes[1]
                 STALKER_REQUESTS[alvo.lower()] = user
-                send_raw(irc_socket, f"WHOIS {alvo}")
+                # Ninguém no canal sabe. O bot pede o WHOIS discretamente ao servidor.
+                send_raw(irc_socket, f"WHOIS {alvo} {alvo}")
+                if not is_private:
+                    send_raw(irc_socket, f"PRIVMSG {user} :🔎 Investigação silenciosa iniciada sobre {alvo}. Aguarda o relatório em PVT.")
             return True
 
     if NICK.lower() in msg:
@@ -416,23 +429,10 @@ def loops_fundo(sock):
             if choice < 0.4: send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(REFORCO_POSITIVO)}")
             else: send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(PUXAR_CONVERSA).format(u=random.choice(ativos))}")
 
-def parse_whois(line, irc):
-    partes = line.split()
-    if len(partes) < 4: return
-    alvo_nick = partes[3].lower()
-    if alvo_nick in STALKER_REQUESTS:
-        solicitante = STALKER_REQUESTS[alvo_nick]
-        if " 311 " in line:
-            realname = line.split(" :", 1)[1] if " :" in line else "Desconhecido"
-            send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] Alvo: {partes[3]} | Host: {partes[4]}@{partes[5]} | Nome: {realname}")
-        elif " 318 " in line:
-            send_raw(irc, f"PRIVMSG {solicitante} :[STALKER] Fim do relatório.")
-            del STALKER_REQUESTS[alvo_nick]
-
 def run_irc_bot():
     while True:
         try:
-            logger.info(f"Tentando ligar ao servidor {SERVER}...")
+            logger.info(f"Conectando a {SERVER}...")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             irc.settimeout(300)
             irc.connect((SERVER, PORT))
@@ -446,33 +446,27 @@ def run_irc_bot():
                 try:
                     data = irc.recv(4096).decode("utf-8", errors="ignore")
                 except socket.timeout:
-                    logger.warning("Timeout de socket (sem dados há muito tempo). Reiniciando...")
+                    logger.warning("Timeout! Reconectando...")
                     break
                 
                 if not data:
-                    logger.warning("Ligação fechada pelo servidor IRC.")
+                    logger.warning("Ligação fechada pelo servidor.")
                     break
                 
                 for line in data.split("\r\n"):
                     if not line: continue
+                    if line.startswith("PING"): send_raw(irc, f"PONG {line.split()[1]}")
                     
-                    # Log de debug opcional (podes remover se houver muito spam)
-                    # logger.debug(f"IRC RAW: {line}")
-
-                    if line.startswith("PING"):
-                        send_raw(irc, f"PONG {line.split()[1]}")
-                    
-                    if any(num in line for num in [" 311 ", " 317 ", " 301 ", " 318 ", " 401 "]):
+                    if any(num in line for num in [" 311 ", " 317 ", " 312 ", " 318 ", " 319 "]):
                         parse_whois(line, irc)
                     
-                    if "376" in line: # End of MOTD (Ligado com sucesso)
-                        logger.info("Autenticação no IRC concluída com sucesso.")
+                    if "376" in line:
+                        logger.info("Bot Online.")
                         send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         send_raw(irc, f"JOIN {CHANNEL}")
                         if not threads_started:
                             threading.Thread(target=loops_fundo, args=(irc,), daemon=True).start()
                             threads_started = True
-                            logger.info("Loops de fundo iniciados.")
                     
                     if " JOIN " in line:
                         u = line.split('!')[0][1:]
@@ -480,7 +474,7 @@ def run_irc_bot():
                             CHANNEL_USERS.add(u)
                             send_raw(irc, f"PRIVMSG {CHANNEL} :{random.choice(USER_GREETINGS).format(u=u)}")
                         else:
-                            logger.info(f"Entrei com sucesso no canal {CHANNEL}")
+                            logger.info(f"Dentro de {CHANNEL}")
                             send_raw(irc, f"NAMES {CHANNEL}")
                     
                     if " 353 " in line:
@@ -495,7 +489,7 @@ def run_irc_bot():
                         u = line.split('!')[0][1:]
                         if u in CHANNEL_USERS: CHANNEL_USERS.remove(u)
                         if u == NICK:
-                            logger.warning(f"Fui removido do canal ou saí (Linha: {line})")
+                            logger.warning(f"Saída detetada: {line}")
                             break
 
                     if " PRIVMSG " in line:
@@ -505,12 +499,10 @@ def run_irc_bot():
                         handle_interaction(user, msg_content, target == NICK, irc)
                         
         except Exception as e:
-            logger.error(f"Erro crítico na ligação: {e}. A tentar novamente em 15s...")
+            logger.error(f"Erro crítico: {e}. Retry em 15s...")
             time.sleep(15)
 
 if __name__ == "__main__":
-    logger.info("A iniciar aplicação TheOG...")
     port = int(os.environ.get("PORT", 5000))
-    # Flask necessário para o Render não dar erro de Port Timeout
     threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port, use_reloader=False), daemon=True).start()
     run_irc_bot()
