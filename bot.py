@@ -4,9 +4,18 @@ import threading
 import os
 import random
 import requests
-import yt_dlp
-from datetime import datetime
+import logging
+import sys
 from flask import Flask
+
+# --- CONFIGURAÇÃO DE LOGS PARA O RENDER ---
+# Configura o logging para escrever no stdout para que o Render capture tudo
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger("TheOG_Bot")
 
 # --- CONFIGURAÇÕES ---
 SERVER = "irc.ptnet.org"
@@ -29,7 +38,7 @@ LAST_SEEN = {}
 CHANNEL_USERS = set()
 STALKER_REQUESTS = {}
 
-# --- CONTEÚDO PERSONALIZADO (TOTALMENTE INTEGRAL DO DOCX) ---
+# --- CONTEÚDO PERSONALIZADO ---
 
 HISTORIA_THEOG = [
     "No meio da imensidão caótica da internet, existe um canto improvável chamado #TheOG.",
@@ -76,7 +85,7 @@ PRENDAS = [
     "oferece um saco de tremoços a {u}! 🥜", "entrega um boné com hélice a {u}! 🧢",
     "oferece uma bica e um pastel de nata a {u}! ☕🥧", "dá um autógrafo do CR7 a {u}! ✍️",
     "oferece facas de cozinha a {u}! 🔪", "entrega uma lanterna a {u}! 🔦",
-    "oferece um chouriço assado a {u}!  Bacon ", "dá uma subscrição vitalícia ao #TheOG a {u}! 💎",
+    "oferece um chouriço assado a {u}! 🔥", "dá uma subscrição vitalícia ao #TheOG a {u}! 💎",
     "oferece um martelo de S. João a {u}! 🔨", "entrega uma saca de batatas a {u}! 🥔",
     "oferece um dente de alho a {u}! 🧄", "dá uns óculos de sol fixes a {u}! 😎",
     "oferece uma fatia de bolo a {u}! 🍰", "entrega uma ventoinha a {u}! 🌀",
@@ -109,7 +118,7 @@ PRENDAS = [
     "oferece um telescópio a {u}! 🔭", "dá uma bacia de caracóis a {u}! 🐌",
     "oferece bilhetes de cinema a {u}! 🎬", "entrega gelado de baunilha a {u}! 🍦",
     "oferece uma almofada a {u}! 🛌", "dá um porta-chaves a {u}! 🔑",
-    "oferece um queijo de Azeitão a {u}! 🧀", "dá uma almofada de viagem a {u}! ✈️",
+    "oferece um queique de Azeitão a {u}! 🧀", "dá uma almofada de viagem a {u}! ✈️",
     "oferece um boneco do Santo António a {u}! ⛪", "entrega um chouriço para assar a {u}! 🔥",
     "oferece um comando de ar condicionado a {u}! ❄️", "dá um peluche de polvo a {u}! 🐙",
     "oferece uma miniatura de um elétrico de Lisboa a {u}! 🚋", "entrega um voucher de tatuagem a {u}! 🖋️",
@@ -225,7 +234,7 @@ OG_EVASIVE = [
     "Estou a ver se o relógio anda para trás.", "Estou a tentar não pensar em nada.",
     "Estou a testar o eco.", "Fui ali ao fundo e voltei.",
     "Fui ali e já não estou.", "Estou a tentar ser cool.",
-    "Fui ali à esquina.", "Fui ali ao jardim.",
+    "Fui ali à esquina.", "Fui ali al jardim.",
     "Fui ali ao mercado.", "Fui ali ao rio.",
     "Fui ali ao monte.", "Fui ali ver o mar.",
     "Fui ali à praia.", "Fui ali ver a serra.",
@@ -305,8 +314,10 @@ USER_GREETINGS = ["Boas-vindas {u}! 😊", "Olá {u}! Estás em casa.", "Olha qu
 # --- LÓGICA DO BOT ---
 
 def send_raw(sock, msg):
-    try: sock.send(f"{msg}\r\n".encode('utf-8'))
-    except: pass
+    try:
+        sock.send(f"{msg}\r\n".encode('utf-8'))
+    except Exception as e:
+        logger.error(f"Erro ao enviar mensagem: {e}")
 
 def get_radio_status():
     try:
@@ -315,7 +326,8 @@ def get_radio_status():
         source = data['icestats']['source']
         if isinstance(source, list): source = source[0]
         return source.get('title', 'Rádio em Direto')
-    except: return "Rádio #TheOG Online"
+    except:
+        return "Rádio #TheOG Online"
 
 def ask_hugging_face(question):
     headers = {"Authorization": f"Bearer {HF_TOKEN}", "Content-Type": "application/json"}
@@ -327,22 +339,24 @@ def ask_hugging_face(question):
         if isinstance(res, list):
             return res[0]['generated_text'].split("assistant\n")[-1].strip()
         return res.get('generated_text', "Não sei o que responder.").split("assistant\n")[-1].strip()
-    except: return "A central da IA está offline."
+    except:
+        return "A central da IA está offline."
 
 def handle_interaction(user, message, is_private, irc_socket):
     msg = message.lower().strip()
     target = user if is_private else CHANNEL
     LAST_SEEN[user] = time.time()
+    
+    logger.info(f"Interação: [{user}] -> {message}")
 
     if msg.startswith("!"):
         if msg == "!comandos":
             cmds = ["!historia", "!musica", "!pedir <link yt>", "!pergunta <texto>", "!lapada <nick>", "!prenda <nick>", "!stalker <nick>"]
             send_raw(irc_socket, f"PRIVMSG {user} :Comandos: {', '.join(cmds)}")
-            if not is_private:
-                send_raw(irc_socket, f"PRIVMSG {CHANNEL} :{user}, mandei a lista para o teu PVT! 📩")
+            if not is_private: send_raw(irc_socket, f"PRIVMSG {CHANNEL} :{user}, mandei a lista para o teu PVT! 📩")
             return True
 
-        if msg == "!musica" or msg == "!radio":
+        if msg in ["!musica", "!radio"]:
             track = get_radio_status()
             send_raw(irc_socket, f"PRIVMSG {target} :📻 [Rádio #TheOG] No ar: {track}")
             send_raw(irc_socket, f"PRIVMSG {user} :Ouve a nossa rádio 24/7 aqui: {ICECAST_URL}")
@@ -360,7 +374,7 @@ def handle_interaction(user, message, is_private, irc_socket):
             if not is_private: send_raw(irc_socket, f"PRIVMSG {CHANNEL} :{user}, fui de fininho entregar-te a história em PVT! 📩")
             for linha in HISTORIA_THEOG:
                 send_raw(irc_socket, f"PRIVMSG {user} :{linha}")
-                time.sleep(1.5)
+                time.sleep(1.2)
             return True
 
         if msg.startswith("!pergunta"):
@@ -399,7 +413,7 @@ def loops_fundo(sock):
         ativos = [n for n in list(CHANNEL_USERS) if n.lower() not in BOT_FILTER]
         if ativos:
             choice = random.random()
-            if choice < 0.5: send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(REFORCO_POSITIVO)}")
+            if choice < 0.4: send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(REFORCO_POSITIVO)}")
             else: send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(PUXAR_CONVERSA).format(u=random.choice(ativos))}")
 
 def parse_whois(line, irc):
@@ -418,48 +432,85 @@ def parse_whois(line, irc):
 def run_irc_bot():
     while True:
         try:
+            logger.info(f"Tentando ligar ao servidor {SERVER}...")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             irc.settimeout(300)
             irc.connect((SERVER, PORT))
+            
             send_raw(irc, f"NICK {NICK}")
             send_raw(irc, f"USER {NICK} 8 * :TheOG Radio Bot")
+            
             threads_started = False
 
             while True:
-                data = irc.recv(4096).decode("utf-8", errors="ignore")
-                if not data: break
+                try:
+                    data = irc.recv(4096).decode("utf-8", errors="ignore")
+                except socket.timeout:
+                    logger.warning("Timeout de socket (sem dados há muito tempo). Reiniciando...")
+                    break
+                
+                if not data:
+                    logger.warning("Ligação fechada pelo servidor IRC.")
+                    break
+                
                 for line in data.split("\r\n"):
                     if not line: continue
-                    if "PING" in line: send_raw(irc, f"PONG {line.split()[1]}")
-                    if any(num in line for num in [" 311 ", " 317 ", " 301 ", " 318 ", " 401 "]): parse_whois(line, irc)
-                    if "376" in line:
+                    
+                    # Log de debug opcional (podes remover se houver muito spam)
+                    # logger.debug(f"IRC RAW: {line}")
+
+                    if line.startswith("PING"):
+                        send_raw(irc, f"PONG {line.split()[1]}")
+                    
+                    if any(num in line for num in [" 311 ", " 317 ", " 301 ", " 318 ", " 401 "]):
+                        parse_whois(line, irc)
+                    
+                    if "376" in line: # End of MOTD (Ligado com sucesso)
+                        logger.info("Autenticação no IRC concluída com sucesso.")
                         send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         send_raw(irc, f"JOIN {CHANNEL}")
                         if not threads_started:
                             threading.Thread(target=loops_fundo, args=(irc,), daemon=True).start()
                             threads_started = True
+                            logger.info("Loops de fundo iniciados.")
+                    
                     if " JOIN " in line:
                         u = line.split('!')[0][1:]
                         if u != NICK:
                             CHANNEL_USERS.add(u)
                             send_raw(irc, f"PRIVMSG {CHANNEL} :{random.choice(USER_GREETINGS).format(u=u)}")
-                        else: send_raw(irc, f"NAMES {CHANNEL}")
+                        else:
+                            logger.info(f"Entrei com sucesso no canal {CHANNEL}")
+                            send_raw(irc, f"NAMES {CHANNEL}")
+                    
                     if " 353 " in line:
-                        names = line.split(" :")[1].split()
-                        for n in names:
-                            clean_n = n.lstrip('@+&%~')
-                            if clean_n != NICK: CHANNEL_USERS.add(clean_n)
-                    if " PART " in line or " QUIT " in line or " KICK " in line:
+                        try:
+                            names = line.split(" :")[1].split()
+                            for n in names:
+                                clean_n = n.lstrip('@+&%~')
+                                if clean_n != NICK: CHANNEL_USERS.add(clean_n)
+                        except: pass
+                    
+                    if any(x in line for x in [" PART ", " QUIT ", " KICK "]):
                         u = line.split('!')[0][1:]
                         if u in CHANNEL_USERS: CHANNEL_USERS.remove(u)
+                        if u == NICK:
+                            logger.warning(f"Fui removido do canal ou saí (Linha: {line})")
+                            break
+
                     if " PRIVMSG " in line:
                         user = line.split('!')[0][1:]
                         target = line.split(' PRIVMSG ')[1].split(' :')[0]
-                        message = line.split(' PRIVMSG ')[1].split(' :', 1)[1]
-                        handle_interaction(user, message, target == NICK, irc)
+                        msg_content = line.split(' PRIVMSG ')[1].split(' :', 1)[1]
+                        handle_interaction(user, msg_content, target == NICK, irc)
+                        
         except Exception as e:
+            logger.error(f"Erro crítico na ligação: {e}. A tentar novamente em 15s...")
             time.sleep(15)
 
 if __name__ == "__main__":
-    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000))), daemon=True).start()
+    logger.info("A iniciar aplicação TheOG...")
+    port = int(os.environ.get("PORT", 5000))
+    # Flask necessário para o Render não dar erro de Port Timeout
+    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port, use_reloader=False), daemon=True).start()
     run_irc_bot()
