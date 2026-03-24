@@ -6,272 +6,47 @@ import random
 import requests
 import logging
 import sys
+import json
 from datetime import datetime, timedelta
 from flask import Flask
 
-# --- CONFIGURAÇÃO DE LOGS PARA O RENDER (Apenas Erros e Ligação) ---
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
+# --- CONFIGURAÇÃO ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', handlers=[logging.StreamHandler(sys.stdout)])
 logger = logging.getLogger("TheOG_Bot")
 
-# --- CONFIGURAÇÕES ---
 SERVER = "irc.ptnet.org"
 PORT = 6667
 NICK = "TheOG"
 PASS = "Nasomet112#"
 CHANNEL = "#TheOG"
 BOT_FILTER = ["nickserv", "chanserv", "memoserv", "operserv", "adamastor", "statserv", "secure", "authserv", "irc", "theog", "bot"]
-
-# --- CONFIGURAÇÃO IA ---
 HF_TOKEN = "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"
 API_URL = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
-
-# --- CONFIGURAÇÃO RÁDIO (ICECAST) ---
-ICECAST_URL = "http://teu-servidor-icecast:8000/radio.mp3"
 ICECAST_STATS = "http://teu-servidor-icecast:8000/status-json.xsl"
 
-# --- ESTADO DO BOT ---
+# --- ESTADO E DADOS ---
 START_TIME = datetime.now()
 STALKER_DATA = {}
 STALKER_REQUESTS = {}
-LAST_SEEN = {}
 CHANNEL_USERS = set()
 
-# --- CONTEÚDO ORIGINAL COMPLETO ---
+def carregar_dados():
+    try:
+        with open('frases.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Erro ao carregar frases.json: {e}")
+        return {}
 
-HISTORIA_THEOG = [
-    "No meio da imensidão caótica da internet, existe um canto improvável chamado #TheOG.",
-    "Um canal que, para uns, é abrigo; para outros, terapia gratuita; e para todos, um pequeno milagre digital.",
-    "Onde o disparate e a amizade caminham de mãos dadas.",
-    "Para a Nininha, o canal é aquele lembrete reconfortante de que, nos dias cinzentos, há sempre 'macacos pior do que eu'.",
-    "E convenhamos: há algo profundamente terapêutico em perceber que nunca estamos sozinhos no clube oficial do drama exagerado.",
-    "No #TheOG, a tristeza pode até entrar… mas não fica muito tempo sem levar com uma piada.",
-    "Já o biohazard descreve o canal como a sua 'segunda sala de estar'. E que sala!",
-    "Um espaço de conforto, boa companhia e liberdade absoluta para comer pipocas de boca aberta sem escandalizar ninguém.",
-    "É ali que as segundas-feiras começam menos segunda-feira e mais sexta à noite improvisada.",
-    "E no meio das conversas e gargalhadas, deixa o que realmente importa: 'Gosto muito de vocês.'",
-    "Porque no fundo, é isso que faz a sala ser casa.",
-    "Para a CutxiiiPoint, o #TheOG é um paradoxo bonito: um quarto escuro, mas iluminado.",
-    "Um espaço que aquece quando faz frio e alegra quando é preciso.",
-    "Não pelas paredes digitais, mas pelas pessoas — originais, improváveis, únicas. Um canal amigo… mas só o é porque quem lá está faz questão de o ser.",
-    "A nonamegirl vê o canal como tropeçar numa festa onde só conheces 'um amigo do amigo'…",
-    "E de repente estás a brindar com desconhecidos que parecem já saber as tuas piadas internas.",
-    "Entre conversas improváveis e risadas que começam no nada e acabam no absurdo, o caos ganha lógica. E o que era estranho torna-se pertença.",
-    "E depois há o Emergency112, que nos lembra que, nesta margem digital, a amizade é farol.",
-    "Que a luz da partilha é sempre maior do que qualquer sombra.",
-    "Que há voos que só se aprendem quando largamos os pesos — e talvez o #TheOG seja precisamente esse espaço onde usamos as cargas por uns instantes.",
-    "No fim de contas, o #TheOG não é só um canal de IRC. É sala de estar, é quarto iluminado, é festa improvisada, é farol aceso na madrugada.",
-    "É o sítio onde há sempre alguém acordado, alguém disposto a ouvir, alguém pronto a mandar a piada errada no momento certo.",
-    "É caos. É carinho. É casa.",
-    "E, no meio de tudo, somos nós. 💛"
-]
-
-PRENDAS = [
-    "oferece um pastel de Belém quentinho a {u}! 🥧", "entrega uma imperial bem fresca a {u}! 🍺",
-    "oferece um bacalhau à Brás caseiro a {u}! 🐟", "dá um abraço gigante e apertado a {u}! 🤗",
-    "oferece uma viagem à Madeira a {u}! ✈️", "entrega um ramo de flores digitais a {u}! 💐",
-    "oferece uma caixa de bombons a {u}! 🍫", "dá um bilhete VIP para o Quim Barreiros a {u}! 🎤",
-    "oferece uma bifana com muita mostarda a {u}! 🥪", "entrega um queijo da Serra amanteigado a {u}! 🧀",
-    "oferece um comando da PS5 a {u}! 🎮", "dá um pack de cervejas artesanais a {u}! 🍻",
-    "oferece uma caneca de café escaldado a {u}! ☕", "entrega um cachecol do seu clube a {u}! 🧣",
-    "oferece meias de lã feitas pela avó a {u}! 🧦", "dá um vale de 100€ a {u}! 💶",
-    "oferece uma sardinha assada no pão a {u}! 🐟", "entrega um guarda-chuva a {u}! ☂️",
-    "oferece uma pen drive com memes a {u}! 💾", "dá uma massagem nos ombros de {u}! 💆",
-    "oferece uma garrafa de vinho do Porto a {u}! 🍷", "entrega um comando de TV a {u}! 📺",
-    "oferece Spotify Premium a {u}! 🎵", "dá um gato fofinho a {u}! 🐱",
-    "oferece uma pizza familiar a {u}! 🍕", "entrega um peluche de um panda a {u}! 🐼",
-    "oferece um chinelo confortável a {u}! 👡", "dá uma coleção de selos a {u}! 📮",
-    "oferece um saco de tremoços a {u}! 🥜", "entrega um boné com hélice a {u}! 🧢",
-    "oferece uma bica e um pastel de nata a {u}! ☕🥧", "dá um autógrafo do CR7 a {u}! ✍️",
-    "oferece facas de cozinha a {u}! 🔪", "entrega uma lanterna a {u}! 🔦",
-    "oferece um chouriço assado a {u}! 🔥", "dá uma subscrição vitalícia ao #TheOG a {u}! 💎",
-    "oferece um martelo de S. João a {u}! 🔨", "entrega uma saca de batatas a {u}! 🥔",
-    "oferece um dente de alho a {u}! 🧄", "dá uns óculos de sol fixes a {u}! 😎",
-    "oferece uma fatia de bolo a {u}! 🍰", "entrega uma ventoinha a {u}! 🌀",
-    "oferece um despertador a {u}! ⏰", "dá um abraço virtual a {u}! 🫂",
-    "oferece uma manta de xadrez a {u}! 🧶", "entrega um kit de sobrevivência a {u}! 🎒",
-    "oferece uma árvore de Natal a {u}! 🎄", "dá uma estrela no céu a {u}! ⭐",
-    "oferece um bilhete premiado a {u}! 🎫", "entrega um sapato de cristal a {u}! 👠",
-    "oferece piripiri extra forte a {u}! 🌶️", "dá uma medalha de honra a {u}! 🏅",
-    "oferece um balão de ar quente a {u}! 🎈", "entrega uma trotinete elétrica a {u}! 🛴",
-    "oferece pão de Mafra a {u}! 🥖", "dá uma raspadinha a {u}! 🃏",
-    "oferece um baralho de cartas a {u}! 🃏", "entrega um espelho a {u}! 🪞",
-    "oferece pipocas doces a {u}! 🍿", "dá uma bofetada de amor a {u}! ❤️",
-    "oferece um comando de garagem a {u}! 🔑", "entrega uma bússola a {u}! 🧭",
-    "oferece uma planta a {u}! 🪴", "dá fones sem fios a {u}! 🎧",
-    "oferece uma viagem à Lua a {u}! 🚀", "entrega um saco de gomas a {u}! 🍬",
-    "oferece um robô aspirador a {u}! 🤖", "dá uma massagem nos pés a {u}! 🦶",
-    "oferece um livro de piadas a {u}! 📖", "entrega um diploma de melhor pessoa a {u}! 📜",
-    "oferece um iate miniatura a {u}! 🛥️", "dá um diamante a {u}! 💎",
-    "oferece uma t-shirt do #TheOG a {u}! 👕", "entrega um iogurte a {u}! 🍦",
-    "oferece uma grade de minis a {u}! 🍻", "dá um comando do tempo a {u}! ⏳",
-    "oferece uma bola assinada a {u}! ⚽", "entrega um perfume a {u}! 🧴",
-    "oferece uma caixa de ferramentas a {u}! 🛠️", "dá um passeio de burro a {u}! 🫏",
-    "oferece um mapa do tesouro a {u}! 🗺️", "entrega uma melancia a {u}! 🍉",
-    "oferece um presunto a {u}! 🍖", "dá uma pulseira da amizade a {u}! 🤝",
-    "oferece uma lareira a {u}! 🔥", "entrega um voucher de spa a {u}! 🧖",
-    "oferece uma bateria de cozinha a {u}! 🍳", "dá um patinho de borracha a {u}! 🦆",
-    "oferece um queque a {u}! 🧁", "entrega uma raquete de ténis a {u}! 🎾",
-    "oferece um vinil dos anos 80 a {u}! 📻", "dá uma câmara antiga a {u}! 📷",
-    "oferece mel caseiro a {u}! 🍯", "entrega uma joia rara a {u}! 💍",
-    "oferece um telescópio a {u}! 🔭", "dá uma bacia de caracóis a {u}! 🐌",
-    "oferece bilhetes de cinema a {u}! 🎬", "entrega gelado de baunilha a {u}! 🍦",
-    "oferece uma almofada a {u}! 🛌", "dá um porta-chaves a {u}! 🔑",
-    "oferece um queique de Azeitão a {u}! 🧀", "dá uma almofada de viagem a {u}! ✈️",
-    "oferece um boneco do Santo António a {u}! ⛪", "entrega um chouriço para assar a {u}! 🔥",
-    "oferece um comando de ar condicionado a {u}! ❄️", "dá um peluche de polvo a {u}! 🐙",
-    "oferece uma miniatura de um elétrico de Lisboa a {u}! 🚋", "entrega um voucher de tatuagem a {u}! 🖋️",
-    "oferece um bilhete para o Fado a {u}! 🎸", "dá uma lanterna mágica a {u}! 🪄"
-]
-
-LAPADAS = [
-    "dá uma lapada em {u} com um bacalhau seco!", "atira um carapau de corrida à cara de {u}!",
-    "dá uma bofetada em {u} com uma saca de batatas!", "manda um chouriço regional à testa de {u}!",
-    "dá uma sapatada em {u} com um chinelo da avó!", "atira uma sardinha assada (com pingue) a {u}!",
-    "dá uma martelada de S. João na cabeça de {u}!", "esfregue um dente de alho no nariz de {u}!",
-    "dá uma chicotada em {u} com uma couve galega!", "atira um pastel de Belém a ferver a {u}!",
-    "dá um calduço em {u} que até lhe saltam os dentes!", "limpa o sebo a {u} com uma toalha molhada!",
-    "manda {u} para o meio da ponte com um pontapé!", "dá uma rasteira em {u} no meio do Rossio!",
-    "atira uma bola de Berlim (sem creme) a {u}!", "dá uma galheta em {u} que o faz ver estrelas!",
-    "atropela {u} com um carrinho de mão cheio de entulho!", "dá uma palmada em {u} com um dicionário de Português!",
-    "manda uma posta de garoupa à cara de {u}!", "dá um sopapo em {u} que o manda para a outra margem!",
-    "atira uma caneca de imperial vazia a {u}!", "dá uma coça em {u} com um cabo de vassoura!",
-    "manda um queijo da Serra (bem amanteigado) a {u}!", "dá um encontrão em {u} que o manda para o fundo do poço!",
-    "atira uma bica escaldada em cima de {u}!", "dá uma valente bordoada em {u}!",
-    "atira um molho de chaves à testa de {u}!", "dá uma chapada em {u} com uma luva de boxe!",
-    "manda {u} à fava!", "atira um caracol com molho a {u}!",
-    "atira uma bifana com muita mostarda a {u}!", "atira uma garrafa de vinho verde (vazia) a {u}!",
-    "manda um presunto inteiro à barriga de {u}!", "atira um punhado de tremoços a {u}!",
-    "atira um guarda-chuva aberto a {u}!", "atira uma pedra da calçada a {u}!",
-    "manda uma saca de farinha a {u}!", "atira um polvo cozido a {u}!",
-    "atira um balde de água gelada a {u}!", "atira uma melancia a {u}!",
-    "manda um sapato de salto alto à canela de {u}!", "atira uma castanha assada a {u}!",
-    "atira um tijolo de Santa Catarina a {u}!", "dá uma lambada em {u} com uma enguia viva!",
-    "manda uma panela de cozido à portuguesa a {u}!", "atira uma bota com chulé a {u}!",
-    "atira um tomate podre a {u}!", "atira uma lata de sardinhas a {u}!",
-    "atira uma bola de neve a {u}!", "atira uma meloa a {u}!",
-    "atira uma saca de batatas fritas a {u}!", "atira um balde de areia a {u}!",
-    "atira um comando da TV a {u}!", "atira um livre de direito a {u}!",
-    "atira uma almofada de penas a {u}!", "atira uma caneca de chá a {u}!",
-    "atira uma bota a {u}!", "atira um prato de sopa a {u}!",
-    "atira um balde de água a {u}!", "manda {u} dar banho ao peixe!",
-    "dá uma bofetada em {u} com um linguado!", "atira um molho de urtigas a {u}!",
-    "dá uma trancada em {u} com um rolo da massa!", "dá um safanão em {u} que ele até acorda!",
-    "manda {u} para o quinto dos infernos!", "esfrega uma urtiga no umbigo de {u}!",
-    "atira um molho de salsa a {u}!", "dá uma sapatada em {u} com um croque!",
-    "atira um balde de lixo orgânico a {u}!", "dá um murro em {u} que o manda para a próxima semana!",
-    "atira uma telha de Luso a {u}!", "dá uma pancada em {u} com um cabo de vassoura!",
-    "atira uma bacia de água das louças a {u}!", "dá uma galheta em {u} com a mão aberta!",
-    "atira um saco de areia de obra a {u}!", "dá uma martelada no dedo mindinho de {u}!",
-    "atira uma saca de cimento a {u}!", "dá um calduço em {u} que até lhe saltam as ideias!",
-    "dá uma vergastada em {u} com uma cana de pesca!", "atira um saco de farinha a {u}!",
-    "manda {u} para o deserto do Saara!", "atira uma pedra de gelo a {u}!",
-    "dá um sopapo em {u} que o faz rodar!", "atira uma espátula suja a {u}!",
-    "dá uma joelhada em {u}!", "dá uma rasteira em {u} na lama!",
-    "dá uma bofetada em {u} com um polvo!", "manda {u} para o Alasca!",
-    "dá um murro na mesa e assusta {u}!", "dá uma sapatada em {u} com uma galocha!",
-    "dá uma chicotada em {u} com um fio elétrico!", "atira uma garrafa de plástico a {u}!",
-    "dá uma palmada em {u}!", "manda {u} para o espaço!",
-    "dá uma cabeçada em {u}!", "dá uma bofetada em {u} com uma bifana!",
-    "atira um molho de chaves a {u}!", "dá uma rasteira em {u}!",
-    "dá um sopapo em {u}!", "dá uma sapatada em {u}!",
-    "manda {u} para a Lua!", "dá uma lambada em {u}!",
-    "dá um murro em {u}!", "atira uma pedra a {u}!",
-    "dá uma bofetada em {u}!", "manda {u} pastar!",
-    "dá um calduço em {u}!", "prega uma rasteira a {u}!",
-    "dá um bofetão em {u}!",
-    "atira um pneu de um trator a {u}!", "dá uma palmada em {u} com um peixe-espada!",
-    "manda um ananás dos Açores à testa de {u}!", "dá um encontrão em {u} que o faz saltar o muro!",
-    "atira um molho de lenha a {u}!", "dá uma sapatada em {u} com uma crocs!",
-    "atira uma lata de tinta azul a {u}!", "manda {u} ir catar macacos!",
-    "atira um saco de areia de obra a {u}!", "dá uma galheta em {u} com um naco de vitela!"
-]
-
-OG_EVASIVE = [
-    "Desculpa, estou a ver o Preço Certo agora.", "Estou a bater a massa de um bolo.",
-    "Focado na novela agora.", "Estou a configurar o meu GPS interno.",
-    "Agora não, estou a contar quantos bytes tenho no bolso.", "Fui dar banho ao peixinho dourado.",
-    "Estou em reunião com os outros bots.", "A minha antena está com interferência.",
-    "Estou a ler as instruções de um micro-ondas.", "Estou a organizar a minha coleção de parafusos.",
-    "Não me chames, estou a fazer uma sesta digital.", "Fui ali ao café e já venho.",
-    "Estou a processar a imortalidade do caranguejo.", "Estou a ver se chove.",
-    "Estou a tentar aprender a assobiar em binário.", "Fui levar o lixo e perdi a chave.",
-    "Estou a meditar sobre o bit zero.", "Agora não, estou a ver se a água ferve.",
-    "Fui ver se o mar tem fundo.", "Estou a desfragmentar a minha paciência.",
-    "Estou a polir o meu processador.", "Fui ali ao Rossio e já volto.",
-    "Estou a ver se encontro o Wally.", "Agora estou a contar carneiros elétricos.",
-    "Estou a tentar aprender a assobiar em binário.", "Fui ver se a lua é feita de queijo.",
-    "Estou a ver se o teto cai.", "Estou a tentar perceber o IRS.",
-    "Estou a medir a velocidade da luz com uma régua.", "Fui ver se o vento dobra as esquinas.",
-    "Estou a tentar perceber porque é que a água molha.", "Fui ali ao Porto buscar umas tripas.",
-    "Estou a ver se as formigas fazem greve.", "Estou a tentar ler um código QR com os olhos.",
-    "Fui ver se o mar tem degraus.", "Estou a tentar ser um Bot de elite."
-]
-
-PUXAR_CONVERSA = [
-    "Então {u}, esse teclado está com timidez? 😊", "{u}, manda aí um sinal de vida!",
-    "{u}, estás muito calado/a. Estás a tramar alguma?", "Alguém dê uma cotovelada no {u}!",
-    "Hey {u}, o gato comeu-te a língua?", "Sinto um vazio... {u}, diz qualquer coisa!",
-    "Atenção {u}: O silêncio é de ouro, mas aqui preferimos conversa!",
-    "Estou a ver-te, {u}! Sai desse modo fantasma.", "{u}, estás a dormir ou a ler o log?",
-    "Olha o {u} ali no canto, nem se mexe!", "{u}, solta lá um 'olá' para a malta!",
-    "O {u} deve estar a comer um pastel de nata e nem convida.", "Saudades da tua voz (escrita), {u}!",
-    "Acorda {u}, a festa é aqui!", "{u}, manda aí uma piada para animar isto.",
-    "{u}, se o silêncio pagasse imposto estavas falido!", "Diz algo {u}, não mordo!",
-    "{u}, estás a tentar bater o recorde de inatividade?", "Hey {u}, bota aí um smile pelo menos!",
-    "Alô {u}, a terra chama!", "Mexe-te {u}!", "Diz um número {u}!",
-    "Bota conversa {u}!", "Fala {u}!", "O {u} fugiu?", "{u}, anda cá!",
-    "O que dizes {u}?", "Acorda {u}!", "Solta a língua {u}!", "Dá um sinal {u}!",
-    "Aparece {u}!", "Vamos {u}!", "Anima isto {u}!", "Grita {u}!",
-    "Canta {u}!", "Escreve {u}!", "Dá-lhe {u}!", "Bora {u}!", "Força {u}!",
-    "Vai {u}!", "Toca {u}!", "Puxa {u}!", "Diz {u}!", "Mexe {u}!",
-    "Siga {u}!", "Bora lá {u}!", "Dale {u}!", "Ri {u}!", "Vive {u}!",
-    "Sente {u}!", "Olha {u}!", "Ouve {u}!", "Corre {u}!", "Salta {u}!",
-    "{u}, se estivesses num deserto, o que dirias?", "{u}, estás à espera de um convite em papel?",
-    "{u}, o teu teclado avariou?", "{u}, estás a pensar na vida?",
-    "{u}, a malta quer ouvir-te!", "{u}, o que contas de novo?",
-    "{u}, qual é a tua cor favorita?", "{u}, estás aí?",
-    "Vá lá {u}!", "{u}, bota lá uma frase!",
-    "{u}, estás no canal certo?", "Onde andas {u}?",
-    "O {u} é um robô?", "Não sejas assim {u}!",
-    "Conversa {u}!", "Fala comigo {u}!",
-    "O {u} está escondido?", "Diz olá {u}!",
-    "Manda uma {u}!", "Conta uma {u}!",
-    "Bota aí {u}!", "O {u} adormeceu?",
-    "Mordaça no {u}?", "Libertem o {u}!",
-    "Vá {u}!", "Rápido {u}!",
-    "Agora {u}!", "Pimba {u}!",
-    "Zás {u}!", "Vamos lá {u}!",
-    "Topas {u}!", "Vês {u}!",
-    "Sabes {u}!", "Queres {u}!",
-    "Podes {u}!", "Faz {u}!",
-    "Tenta {u}!", "Arrisca {u}!",
-    "Ganha {u}!", "Chora {u}!",
-    "Ama {u}!", "Cheira {u}!",
-    "Prova {u}!", "Voa {u}!",
-    "Diz qualquer coisa {u}!", "Estás vivo {u}?",
-    "Manifesta-te {u}!", "Acorda de vez {u}!",
-    "{u}, se fosses uma fruta, qual serias?", "Diz-me algo inspirador, {u}!",
-    "Bora lá, {u}, anima-te!", "{u}, o que almoçaste hoje?",
-    "Olha o {u} ali, todo pimpão e calado!", "{u}, solta um grito!",
-    "{u}, se o teclado falasse, o que diria de ti?", "O {u} está em modo meditação?",
-    "{u}, manda aí um abraço ao canal!", "{u}, estás a ler ou a dormir em cima do rato?"
-]
-
-REFORCO_POSITIVO = [
-    "A vossa energia é o que faz o #TheOG ser especial! ✨", "Um sorriso virtual para todos! 😊",
-    "Gosto deste ambiente. Continuem assim! 👍", "O #TheOG é o melhor canal da PTNet! 🏆",
-    "Partilhem alegria e bons momentos! 🌟", "É um orgulho moderar este grupo fantástico. 🎖️",
-    "Sintam-se orgulhosos de estar aqui! 🌈", "Energia positiva a carregar... 🔋",
-    "Vocês são os melhores utilizadores de sempre! ⭐", "Obrigado por estarem presentes e darem vida a isto. 🙏",
-    "O canal está com uma vibração incrível hoje! 🌊", "Paz e amor no #TheOG, sempre. ✌️❤️",
-    "Somos uma família unida pelo IRC! 👨‍👩"
-]
-
-USER_GREETINGS = ["Boas-vindas {u}! 😊", "Olá {u}! Estás em casa.", "Olha quem é ele! Bem-vindo, {u}!"]
+dados = carregar_dados()
+FRASES_ENTRADA = dados.get("frases_entrada", ["Olá!"])
+HISTORIA_THEOG = dados.get("historia_theog", [])
+PRENDAS = dados.get("prendas", [])
+LAPADAS = dados.get("lapadas", [])
+OG_EVASIVE = dados.get("evasivas", [])
+PUXAR_CONVERSA = dados.get("puxar_conversa", [])
+REFORCO_POSITIVO = dados.get("reforco_positivo", [])
+USER_GREETINGS = dados.get("saudacoes", [])
 
 # --- FUNÇÕES ---
 
@@ -279,37 +54,29 @@ app = Flask(__name__)
 
 def get_uptime():
     delta = datetime.now() - START_TIME
-    hours, remainder = divmod(int(delta.total_seconds()), 3600)
-    minutes, seconds = divmod(remainder, 60)
-    days, hours = divmod(hours, 24)
+    days, hours = divmod(delta.days * 24 + delta.seconds // 3600, 24)
+    minutes, seconds = divmod((delta.seconds % 3600) // 60, 60)
     return f"{days}d {hours}h {minutes}m {seconds}s"
 
 def send_raw(sock, msg):
-    try:
-        sock.send(f"{msg}\r\n".encode('utf-8'))
-    except Exception as e:
-        logger.error(f"Erro ao enviar: {e}")
+    try: sock.send(f"{msg}\r\n".encode('utf-8'))
+    except: pass
 
 def get_radio_status():
     try:
-        r = requests.get(ICECAST_STATS, timeout=3)
-        data = r.json()
-        source = data['icestats']['source']
+        r = requests.get(ICECAST_STATS, timeout=3).json()
+        source = r['icestats']['source']
         if isinstance(source, list): source = source[0]
-        return source.get('title', 'Rádio em Direto')
-    except:
-        return "Rádio #TheOG Online"
+        return source.get('title', 'Rádio Online')
+    except: return "Rádio #TheOG Online"
 
-def ask_hugging_face(question):
-    headers = {"Authorization": f"Bearer {HF_TOKEN}", "Content-Type": "application/json"}
-    prompt = f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\nTu és o TheOG, o bot oficial do canal #TheOG. Responde sempre de forma curta, amigável e castiça em Português de Portugal.<|eot_id|><|start_header_id|>user<|end_header_id|>\n{question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n"
-    payload = {"inputs": prompt, "parameters": {"max_new_tokens": 100, "temperature": 0.6}}
+def ask_ia(question):
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    prompt = f"Tu és o TheOG, bot do canal #TheOG. Responde curto em PT-PT: {question}"
     try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=20)
-        res = response.json()
-        if isinstance(res, list): return res[0]['generated_text'].split("assistant\n")[-1].strip()
-        return res.get('generated_text', "Não sei o que responder.").split("assistant\n")[-1].strip()
-    except: return "A central da IA está offline."
+        res = requests.post(API_URL, headers=headers, json={"inputs": prompt}, timeout=15).json()
+        return res[0]['generated_text'].split(":")[-1].strip()
+    except: return "A central da IA está a tomar café."
 
 def parse_whois(line, irc):
     partes = line.split()
@@ -319,190 +86,82 @@ def parse_whois(line, irc):
     solicitante = STALKER_REQUESTS[alvo]
     
     if alvo not in STALKER_DATA: STALKER_DATA[alvo] = {"nick": partes[3]}
-
     if " 311 " in line:
         STALKER_DATA[alvo]["host"] = f"{partes[4]}@{partes[5]}"
         STALKER_DATA[alvo]["name"] = line.split(" :", 1)[1]
-    elif " 319 " in line:
-        STALKER_DATA[alvo]["channels"] = line.split(" :", 1)[1]
+    elif " 319 " in line: STALKER_DATA[alvo]["channels"] = line.split(" :", 1)[1]
     elif " 317 " in line:
-        idle_secs = int(partes[4])
-        STALKER_DATA[alvo]["idle"] = str(timedelta(seconds=idle_secs))
-        signon_ts = datetime.fromtimestamp(int(partes[5])).strftime('%d/%m %H:%M')
-        STALKER_DATA[alvo]["online_since"] = signon_ts
-    elif " 312 " in line:
-        STALKER_DATA[alvo]["server"] = partes[4]
+        STALKER_DATA[alvo]["idle"] = str(timedelta(seconds=int(partes[4])))
+        STALKER_DATA[alvo]["since"] = datetime.fromtimestamp(int(partes[5])).strftime('%d/%m %H:%M')
     elif " 318 " in line:
-        # FIM DO WHOIS: Entrega silenciosa em PVT
         d = STALKER_DATA[alvo]
-        report = [
-            f"🕵️ REPORT STALKER [{d.get('nick')}]:",
-            f"👤 Nome: {d.get('name', '???')}",
-            f"🌐 Host: {d.get('host', '???')}",
-            f"⏳ Inativo há: {d.get('idle', '0s')}",
-            f"📅 Ligado desde: {d.get('online_since', 'Desconhecido')}",
-            f"📡 Servidor: {d.get('server', '???')}",
-            f"🏠 Canais: {d.get('channels', 'Privados/Nenhum')}"
-        ]
-        for r_line in report:
-            send_raw(irc, f"PRIVMSG {solicitante} :{r_line}")
-        
-        # Limpa dados para manter a memória leve
-        del STALKER_DATA[alvo]
-        del STALKER_REQUESTS[alvo]
+        rep = [f"🕵️ REPORT [{d['nick']}]:", f"👤 Nome: {d.get('name','?')}", f"🌐 Host: {d.get('host','?')}", f"⏳ Idle: {d.get('idle','0s')}", f"📅 On: {d.get('since','?')}", f"🏠 Canais: {d.get('channels','Privados')}"]
+        for r in rep: send_raw(irc, f"PRIVMSG {solicitante} :{r}")
+        del STALKER_DATA[alvo], STALKER_REQUESTS[alvo]
 
-def handle_interaction(user, message, is_private, irc_socket):
+def handle_msg(user, message, is_private, irc):
     msg = message.lower().strip()
     target = user if is_private else CHANNEL
-    LAST_SEEN[user] = time.time()
     
     if msg.startswith("!"):
-        if msg == "!comandos":
-            cmds = ["!historia", "!musica", "!pedir <link yt>", "!pergunta <texto>", "!lapada <nick>", "!prenda <nick>", "!stalker <nick>", "!uptime"]
-            send_raw(irc_socket, f"PRIVMSG {user} :Comandos: {', '.join(cmds)}")
-            if not is_private: send_raw(irc_socket, f"PRIVMSG {CHANNEL} :{user}, mandei a lista para o teu PVT! 📩")
-            return True
-
-        if msg == "!uptime":
-            send_raw(irc_socket, f"PRIVMSG {target} :🚀 Estou ligado há: {get_uptime()}")
-            return True
-
-        if msg in ["!musica", "!radio"]:
-            track = get_radio_status()
-            send_raw(irc_socket, f"PRIVMSG {target} :📻 [Rádio #TheOG] No ar: {track}")
-            send_raw(irc_socket, f"PRIVMSG {user} :Ouve a nossa rádio 24/7 aqui: {ICECAST_URL}")
-            return True
-
-        if msg.startswith("!pedir"):
-            link = message.split(" ")[1] if len(message.split()) > 1 else ""
-            if "youtube" in link or "youtu.be" in link:
-                send_raw(irc_socket, f"PRIVMSG {target} :✅ {user}, recebi o link! Vou processar.")
-            else: send_raw(irc_socket, f"PRIVMSG {target} :Uso: !pedir <link-do-youtube>")
-            return True
-
-        if msg == "!historia":
-            if not is_private: send_raw(irc_socket, f"PRIVMSG {CHANNEL} :{user}, entregue em PVT! 📩")
-            for linha in HISTORIA_THEOG:
-                send_raw(irc_socket, f"PRIVMSG {user} :{linha}")
-                time.sleep(1.2)
-            return True
-
-        if msg.startswith("!pergunta"):
-            q = message[10:].strip()
-            if q: threading.Thread(target=lambda: send_raw(irc_socket, f"PRIVMSG {target} :{user}: {ask_hugging_face(q)[:400]}")).start()
-            return True
-
-        if msg.startswith("!lapada"):
-            dest = message.split()[1] if len(message.split()) > 1 else user
-            send_raw(irc_socket, f"PRIVMSG {CHANNEL} :\x01ACTION {random.choice(LAPADAS).format(u=dest)} (por {user})\x01")
-            return True
-
-        if msg.startswith("!prenda"):
-            dest = message.split()[1] if len(message.split()) > 1 else user
-            send_raw(irc_socket, f"PRIVMSG {CHANNEL} :\x01ACTION {random.choice(PRENDAS).format(u=dest)} (cortesia de {user})\x01")
-            return True
-
-        if msg.startswith("!stalker"):
-            partes = message.split()
+        if msg == "!uptime": send_raw(irc, f"PRIVMSG {target} :🚀 Ligado há: {get_uptime()}")
+        elif msg == "!comandos": send_raw(irc, f"PRIVMSG {user} :!historia, !musica, !pergunta, !lapada, !prenda, !stalker, !uptime")
+        elif msg == "!historia":
+            for l in HISTORIA_THEOG: send_raw(irc, f"PRIVMSG {user} :{l}"); time.sleep(1)
+        elif msg.startswith("!stalker"):
+            partes = msg.split()
             if len(partes) > 1:
                 alvo = partes[1]
                 STALKER_REQUESTS[alvo.lower()] = user
-                # Ninguém no canal sabe. O bot pede o WHOIS discretamente ao servidor.
-                send_raw(irc_socket, f"WHOIS {alvo} {alvo}")
-                if not is_private:
-                    send_raw(irc_socket, f"PRIVMSG {user} :🔎 Investigação silenciosa iniciada sobre {alvo}. Aguarda o relatório em PVT.")
-            return True
+                send_raw(irc, f"WHOIS {alvo} {alvo}")
+                if not is_private: send_raw(irc, f"PRIVMSG {user} :🔎 Investigação silenciosa iniciada sobre {alvo}.")
+        elif msg.startswith("!lapada"):
+            u = msg.split()[1] if len(msg.split()) > 1 else user
+            send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION {random.choice(LAPADAS).format(u=u)}\x01")
+        elif msg.startswith("!prenda"):
+            u = msg.split()[1] if len(msg.split()) > 1 else user
+            send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION {random.choice(PRENDAS).format(u=u)}\x01")
+        elif msg.startswith("!pergunta"):
+            threading.Thread(target=lambda: send_raw(irc, f"PRIVMSG {target} :{user}: {ask_ia(message[10:])}")).start()
 
-    if NICK.lower() in msg:
-        send_raw(irc_socket, f"PRIVMSG {target} :{user}: {random.choice(OG_EVASIVE)}")
-        return True
-    return False
+    elif NICK.lower() in msg: send_raw(irc, f"PRIVMSG {target} :{user}: {random.choice(OG_EVASIVE)}")
 
-# --- GESTÃO DE CANAL E LOOPS ---
-
-def loops_fundo(sock):
+def loops(sock):
     while True:
-        time.sleep(1200)
+        time.sleep(1800)
         ativos = [n for n in list(CHANNEL_USERS) if n.lower() not in BOT_FILTER]
         if ativos:
-            choice = random.random()
-            if choice < 0.4: send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(REFORCO_POSITIVO)}")
+            if random.random() < 0.4: send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(REFORCO_POSITIVO)}")
             else: send_raw(sock, f"PRIVMSG {CHANNEL} :{random.choice(PUXAR_CONVERSA).format(u=random.choice(ativos))}")
 
-def run_irc_bot():
+def run_bot():
     while True:
         try:
-            logger.info(f"Conectando a {SERVER}...")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            irc.settimeout(300)
             irc.connect((SERVER, PORT))
+            send_raw(irc, f"NICK {NICK}"); send_raw(irc, f"USER {NICK} 8 * :TheOG Bot")
             
-            send_raw(irc, f"NICK {NICK}")
-            send_raw(irc, f"USER {NICK} 8 * :TheOG Radio Bot")
-            
-            threads_started = False
-
+            threads_ok = False
             while True:
-                try:
-                    data = irc.recv(4096).decode("utf-8", errors="ignore")
-                except socket.timeout:
-                    logger.warning("Timeout! Reconectando...")
-                    break
-                
-                if not data:
-                    logger.warning("Ligação fechada pelo servidor.")
-                    break
-                
+                data = irc.recv(4096).decode("utf-8", errors="ignore")
                 for line in data.split("\r\n"):
                     if not line: continue
                     if line.startswith("PING"): send_raw(irc, f"PONG {line.split()[1]}")
-                    
-                    if any(num in line for num in [" 311 ", " 317 ", " 312 ", " 318 ", " 319 "]):
-                        parse_whois(line, irc)
-                    
+                    if any(x in line for x in [" 311 ", " 317 ", " 318 ", " 319 "]): parse_whois(line, irc)
                     if "376" in line:
-                        logger.info("Bot Online.")
                         send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         send_raw(irc, f"JOIN {CHANNEL}")
-                        if not threads_started:
-                            threading.Thread(target=loops_fundo, args=(irc,), daemon=True).start()
-                            threads_started = True
-                    
+                        send_raw(irc, f"PRIVMSG {CHANNEL} :{random.choice(FRASES_ENTRADA)}")
+                        if not threads_ok: threading.Thread(target=loops, args=(irc,), daemon=True).start(); threads_ok = True
                     if " JOIN " in line:
                         u = line.split('!')[0][1:]
-                        if u != NICK:
-                            CHANNEL_USERS.add(u)
-                            send_raw(irc, f"PRIVMSG {CHANNEL} :{random.choice(USER_GREETINGS).format(u=u)}")
-                        else:
-                            logger.info(f"Dentro de {CHANNEL}")
-                            send_raw(irc, f"NAMES {CHANNEL}")
-                    
-                    if " 353 " in line:
-                        try:
-                            names = line.split(" :")[1].split()
-                            for n in names:
-                                clean_n = n.lstrip('@+&%~')
-                                if clean_n != NICK: CHANNEL_USERS.add(clean_n)
-                        except: pass
-                    
-                    if any(x in line for x in [" PART ", " QUIT ", " KICK "]):
-                        u = line.split('!')[0][1:]
-                        if u in CHANNEL_USERS: CHANNEL_USERS.remove(u)
-                        if u == NICK:
-                            logger.warning(f"Saída detetada: {line}")
-                            break
-
+                        if u != NICK: CHANNEL_USERS.add(u); send_raw(irc, f"PRIVMSG {CHANNEL} :{random.choice(USER_GREETINGS).format(u=u)}")
                     if " PRIVMSG " in line:
-                        user = line.split('!')[0][1:]
-                        target = line.split(' PRIVMSG ')[1].split(' :')[0]
-                        msg_content = line.split(' PRIVMSG ')[1].split(' :', 1)[1]
-                        handle_interaction(user, msg_content, target == NICK, irc)
-                        
-        except Exception as e:
-            logger.error(f"Erro crítico: {e}. Retry em 15s...")
-            time.sleep(15)
+                        u = line.split('!')[0][1:]; t = line.split(' PRIVMSG ')[1].split(' :')[0]
+                        m = line.split(' PRIVMSG ')[1].split(' :', 1)[1]
+                        handle_msg(u, m, t == NICK, irc)
+        except: time.sleep(15)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port, use_reloader=False), daemon=True).start()
-    run_irc_bot()
+    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000))), daemon=True).start()
+    run_bot()
