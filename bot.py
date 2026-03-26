@@ -9,9 +9,15 @@ import json
 from datetime import datetime
 from flask import Flask
 
-# --- CONFIGURAÇÃO DE LOGS ---
+# --- CONFIGURAÇÃO DE LOGS FORÇADOS ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', handlers=[logging.StreamHandler(sys.stdout)])
 logger = logging.getLogger("TheOG_Bot")
+
+def force_log(msg):
+    """Garante que a info aparece no painel do Render na hora."""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f"{timestamp} [RENDER_DEBUG] {msg}")
+    sys.stdout.flush()
 
 # --- CONFIGURAÇÃO IRC ---
 SERVER = "irc.ptnet.org"
@@ -33,12 +39,12 @@ def carregar_dados():
         if os.path.exists('frases.json'):
             with open('frases.json', 'r', encoding='utf-8') as f:
                 dados = json.load(f)
-                logger.info("Ficheiro frases.json carregado com sucesso.")
+                force_log("✅ Ficheiro frases.json carregado com sucesso.")
         else:
-            logger.error("ERRO: frases.json não encontrado! A criar base...")
+            force_log("❌ ERRO: frases.json não encontrado! Criando base...")
             criar_base_emergencia()
     except json.JSONDecodeError as e:
-        logger.error(f"ERRO CRÍTICO NO JSON: {e}. Verifique as vírgulas!")
+        force_log(f"🔥 ERRO NO JSON: {e}. Verifique as vírgulas!")
         dados = {"admins": ["Emergency112"], "stalker_config": {"alvos_ativos": {}}}
 
 def salvar_dados():
@@ -46,7 +52,7 @@ def salvar_dados():
         with open('frases.json', 'w', encoding='utf-8') as f:
             json.dump(dados, f, indent=2, ensure_ascii=False)
     except Exception as e:
-        logger.error(f"Erro ao guardar JSON: {e}")
+        force_log(f"Erro ao guardar JSON: {e}")
 
 def criar_base_emergencia():
     global dados
@@ -79,7 +85,7 @@ def send_raw(sock, msg):
     except:
         pass
 
-# --- LÓGICA DE MENSAGENS E COMANDOS ---
+# --- LÓGICA DE MENSAGENS E COMANDOS (ORIGINAL) ---
 def handle_msg(user, message, is_private, irc):
     global dados
     msg = message.lower().strip()
@@ -172,17 +178,15 @@ def handle_msg(user, message, is_private, irc):
     elif NICK.lower() in msg:
         send_raw(irc, f"PRIVMSG {target} :{user}: {random.choice(dados.get('evasivas', ['Estou ocupado!']))}")
 
-# --- PROCESSAMENTO IRC ---
+# --- PROCESSAMENTO IRC (ORIGINAL COM LOGS) ---
 def parse_irc_lines(line, irc):
     global dados
     partes = line.split()
     if not partes: return
 
-    # Se o nick estiver ocupado, limpa e sai para esperar o ciclo de 2 min
     if " 433 " in line:
-        logger.warning(f"Nick {NICK} ocupado. Enviando GHOST e desconectando para limpar.")
+        force_log(f"⚠️ NICK EM USO. Enviando GHOST para {NICK}...")
         send_raw(irc, f"PRIVMSG NickServ :GHOST {NICK} {PASS}")
-        irc.close() 
         return
 
     if " 600 " in line and len(partes) > 3:
@@ -212,35 +216,44 @@ def parse_irc_lines(line, irc):
 # --- SERVIDOR WEB ---
 app = Flask(__name__)
 @app.route('/')
-def home(): return f"TheOG Bot Ativo - Uptime: {get_uptime()}"
+def home(): return f"TheOG Ativo - Uptime: {get_uptime()}"
 
-# --- LOOP PRINCIPAL ---
+# --- LOOP PRINCIPAL (ORIGINAL + ESTABILIDADE RENDER) ---
 def run_bot():
     while True:
         irc = None
         try:
-            logger.info(f"Conectando a {SERVER}...")
+            force_log(f"🛰️ Tentando ligar a {SERVER}:{PORT}...")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             irc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             irc.settimeout(240) 
             irc.connect((SERVER, PORT))
             
-            send_raw(irc, f"PASS {PASS}") # Garante o envio da pass antes do Nick
+            force_log("📡 Socket conectado. Enviando credenciais...")
+            send_raw(irc, f"PASS {PASS}")
             send_raw(irc, f"NICK {NICK}")
             send_raw(irc, f"USER {NICK} 8 * :TheOG Bot")
             
             while True:
                 data = irc.recv(4096).decode("utf-8", errors="ignore")
-                if not data: break
+                if not data: 
+                    force_log("🔌 Conexão fechada pelo servidor.")
+                    break
                 
                 for line in data.split("\r\n"):
                     if not line: continue
                     if line.startswith("PING"): 
                         send_raw(irc, f"PONG {line.split()[1]}")
+                        continue
+                    
+                    # LOG DE TODAS AS MENSAGENS NO RENDER (DEBUG)
+                    if "PRIVMSG" in line:
+                        force_log(f"💬 IRC_MSG: {line}")
                     
                     parse_irc_lines(line, irc)
                     
                     if " 376 " in line or " 422 " in line:
+                        force_log("🏁 Fim do MOTD. Identificando e entrando...")
                         send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         time.sleep(2)
                         send_raw(irc, f"JOIN {CHANNEL}")
@@ -263,15 +276,17 @@ def run_bot():
                             handle_msg(u_from, m_text, t_dest == NICK, irc)
                         except: continue
         except Exception as e:
-            logger.error(f"Erro: {e}. Aguardando 2 minutos para reconectar...")
+            force_log(f"💥 ERRO CRÍTICO: {e}")
         finally:
             if irc:
                 try: irc.close()
                 except: pass
-            # PAUSA CRÍTICA DE 2 MINUTOS PARA EVITAR THEOG_1, THEOG_2...
+            force_log("⏳ Aguardando 120s para garantir limpeza do Nick...")
             time.sleep(120)
 
 if __name__ == "__main__":
     port_render = int(os.environ.get("PORT", 5000))
+    # Inicia WebServer
     threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port_render), daemon=True).start()
+    # Inicia Bot
     run_bot()
