@@ -9,7 +9,7 @@ import json
 from datetime import datetime
 from flask import Flask
 
-# --- CONFIGURAÇÃO DE LOGS (PARA RENDER) ---
+# --- CONFIGURAÇÃO DE LOGS ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s', handlers=[logging.StreamHandler(sys.stdout)])
 def force_log(msg):
     print(msg)
@@ -21,36 +21,31 @@ PORT = 6667
 NICK = "TheOG"
 PASS = "Nasomet112#"
 CHANNEL = "#TheOG"
-# Lista de Operadores/Admins
 ADMINS = ["Emergency112", "Padre", "CutxiiiPoint"]
 
 # --- ESTADO ---
 START_TIME = datetime.now()
 users_online = []
 dados = {
-    "saudacoes_comuns": ["Olá {u}!", "Boas {u}, bem-vindo!", "Viva {u}!"],
-    "saudacoes_admins": [
-        "Grande {u}! O canal está agora em boas mãos. Bem-vindo, Chefe!",
-        "Olha quem chegou para por ordem nisto: Viva {u}!",
-        "Boas, {u}! Estávamos à tua espera para animar o #TheOG!"
-    ],
-    "puxar_conversa": ["Como corre isso, {u}?", "{u}: novidades?", "Tudo calmo por aqui, {u}?"],
-    "frases_entrada": ["TheOG Online!", "Pronto para a ação."],
-    "convites": ["Ei {u}, junta-te a nós no #TheOG!"]
+    "saudacoes_comuns": ["Olá {u}!", "Boas {u}!", "Viva {u}!"],
+    "saudacoes_admins": ["Grande {u}! Bem-vindo, Chefe!", "Viva {u}! O canal é teu."],
+    "puxar_conversa": ["Como corre isso, {u}?", "{u}: novidades?", "Tudo calmo, {u}?"],
+    "respostas_gerais": ["Diz lá, {u}!", "Estou a ouvir, {u}.", "Fala comigo!", "Tudo operacional por aqui."],
+    "frases_entrada": ["TheOG Online e atento!"],
 }
 
 def get_uptime():
     return str(datetime.now() - START_TIME).split('.')[0]
 
-# --- MOTOR DE ENVIO (EQUILIBRADO - 2s) ---
+# --- MOTOR DE ENVIO (CADÊNCIA DE 1.5s - Equilibrado) ---
 def send(irc, msg):
     try:
         irc.send(f"{msg}\r\n".encode('utf-8'))
-        time.sleep(2.0) 
+        time.sleep(1.5) 
     except:
         pass
 
-# --- TAREFA SOCIAL (A CADA 20 MINUTOS) ---
+# --- TAREFA SOCIAL (20 MINUTOS) ---
 def social_cycle(irc):
     while True:
         time.sleep(1200)
@@ -60,44 +55,48 @@ def social_cycle(irc):
                 alvo = random.choice(outros)
                 frase = random.choice(dados["puxar_conversa"]).format(u=alvo)
                 send(irc, f"PRIVMSG {CHANNEL} :{frase}")
-                force_log(f"SOCIAL: Interação com {alvo}")
 
-# --- COMANDOS ---
+# --- RECEPTOR E RESPOSTA (O CORAÇÃO DO BOT) ---
 def handle_msg(user, message, is_private, irc):
     msg = message.lower().strip()
     target = user if is_private else CHANNEL
     
-    if msg == "!uptime":
-        send(irc, f"PRIVMSG {target} :🚀 Online há: {get_uptime()}")
-    
-    elif msg.startswith("!convidar "):
-        partes = msg.split()
-        if len(partes) > 1:
-            alvo = partes[1]
-            frase = random.choice(dados["convites"]).format(u=alvo)
-            send(irc, f"PRIVMSG {alvo} :{frase}")
-            force_log(f"CONVITE: {user} convidou {alvo}")
+    force_log(f"MENSAGEM DE {user}: {message}")
 
-# --- WEB SERVER (PARA O RENDER) ---
+    # 1. Resposta a Comandos
+    if msg == "!uptime":
+        send(irc, f"PRIVMSG {target} :🚀 Uptime: {get_uptime()}")
+        return
+
+    # 2. Resposta quando o chamam pelo nome ou falam em privado
+    if NICK.lower() in msg or is_private:
+        # Se for um admin, ele pode ser mais respeitoso
+        if user in ADMINS:
+            resposta = f"Com certeza, Chefe {user}. Em que posso ajudar?"
+        else:
+            resposta = random.choice(dados["respostas_gerais"]).format(u=user)
+        
+        send(irc, f"PRIVMSG {target} :{resposta}")
+        force_log(f"RESPONDIDO A {user}: {resposta}")
+
+# --- WEB SERVER ---
 app = Flask(__name__)
 @app.route('/')
-def home(): return f"TheOG Ativo | Admins: Padre, CutxiiiPoint, Emergency112"
+def home(): return "TheOG Bot Ativo"
 
 # --- BOT CORE ---
 def run_bot():
     global users_online
     while True:
         try:
-            force_log("--- A LIGAR AO SERVIDOR (EQUILIBRADO) ---")
+            force_log("--- A LIGAR ---")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             irc.settimeout(240)
             irc.connect((SERVER, PORT))
             
-            # Login Faseado para evitar Flood
+            # Login
             irc.send(f"PASS {PASS}\r\n".encode())
-            time.sleep(1)
             irc.send(f"NICK {NICK}\r\n".encode())
-            time.sleep(1)
             irc.send(f"USER {NICK} 8 * :TheOG Manager\r\n".encode())
             
             threading.Thread(target=social_cycle, args=(irc,), daemon=True).start()
@@ -113,71 +112,52 @@ def run_bot():
                         irc.send(f"PONG {line.split()[1]}\r\n".encode())
                         continue
 
-                    # Recuperação de Nick (Ghost)
+                    # Recuperação de Nick
                     if " 433 " in line:
-                        force_log("AVISO: Nick ocupado. Recuperando...")
                         irc.send(f"NICK {NICK}_{random.randint(10,99)}\r\n".encode())
                         time.sleep(2)
                         send(irc, f"PRIVMSG NickServ :GHOST {NICK} {PASS}")
-                        time.sleep(3)
+                        time.sleep(2)
                         irc.send(f"NICK {NICK}\r\n".encode())
 
-                    # Fim do MOTD - Entrar no Canal
+                    # Entrar no canal após MOTD
                     if " 376 " in line or " 422 " in line:
-                        force_log("CONECTADO. Entrando no canal...")
                         send(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         send(irc, f"JOIN {CHANNEL}")
                         send(irc, f"NAMES {CHANNEL}")
-                        entrada = random.choice(dados["frases_entrada"])
-                        send(irc, f"PRIVMSG {CHANNEL} :{entrada}")
 
-                    # Lista de Utilizadores
+                    # Lista de Users
                     if " 353 " in line:
                         nicks = line.split(" :")[1].split()
                         users_online = [n.strip("@+ ") for n in nicks]
-                        force_log(f"Utilizadores no canal: {len(users_online)}")
 
-                    # GESTÃO DE ENTRADAS (JOIN)
+                    # Entradas
                     if " JOIN " in line and CHANNEL in line:
                         u = line.split('!')[0][1:]
                         if u != NICK:
                             if u not in users_online: users_online.append(u)
-                            
-                            # Lógica Personalizada de Boas-Vindas
-                            if u == "Emergency112":
-                                force_log(f"O Chefe {u} entrou. Mantendo silêncio conforme pedido.")
-                            elif u in ["Padre", "CutxiiiPoint"]:
-                                msg = random.choice(dados["saudacoes_admins"]).format(u=u)
-                                send(irc, f"PRIVMSG {CHANNEL} :{msg}")
-                                force_log(f"ADMIN ENTROU: {u} (Saudação especial enviada)")
-                            else:
-                                msg = random.choice(dados["saudacoes_comuns"]).format(u=u)
-                                send(irc, f"PRIVMSG {CHANNEL} :{msg}")
-                                force_log(f"UTILIZADOR ENTROU: {u}")
+                            if u != "Emergency112": # Silêncio para ti
+                                msg_s = random.choice(dados["saudacoes_admins" if u in ADMINS else "saudacoes_comuns"]).format(u=u)
+                                send(irc, f"PRIVMSG {CHANNEL} :{msg_s}")
 
-                    # Saídas
-                    if " PART " in line or " QUIT " in line:
-                        u = line.split('!')[0][1:]
-                        if u in users_online: users_online.remove(u)
-                        force_log(f"SAIU: {u}")
-
-                    # Mensagens
+                    # MENSAGENS (PRIVMSG) - Processamento Reforçado
                     if " PRIVMSG " in line:
-                        u = line.split('!')[0][1:]
                         try:
-                            t_msg = line.split(' PRIVMSG ')[1].split(' :')[0]
-                            m_msg = line.split(' PRIVMSG ')[1].split(' :', 1)[1]
-                            handle_msg(u, m_msg, t_msg == NICK, irc)
-                        except: continue
+                            # Extrair o nick: :Nick!user@host PRIVMSG target :message
+                            user_nick = line.split('!')[0][1:]
+                            target = line.split(' PRIVMSG ')[1].split(' :')[0]
+                            content = line.split(' PRIVMSG ')[1].split(' :', 1)[1]
+                            
+                            handle_msg(user_nick, content, target == NICK, irc)
+                        except Exception as e:
+                            force_log(f"Erro ao processar linha: {e}")
 
         except Exception as e:
             force_log(f"ERRO: {e}")
         finally:
             if irc: irc.close()
-            users_online = []
-            time.sleep(20)
+            time.sleep(15)
 
 if __name__ == "__main__":
-    port_r = int(os.environ.get("PORT", 5000))
-    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port_r), daemon=True).start()
+    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000))), daemon=True).start()
     run_bot()
