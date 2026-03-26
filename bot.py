@@ -9,179 +9,269 @@ import json
 from datetime import datetime
 from flask import Flask
 
-# --- LOGS ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s', handlers=[logging.StreamHandler(sys.stdout)])
-def force_log(msg):
-    print(msg)
-    sys.stdout.flush()
+# --- CONFIGURAÇÃO DE LOGS ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', handlers=[logging.StreamHandler(sys.stdout)])
+logger = logging.getLogger("TheOG_Bot")
 
-# --- CONFIGURAÇÃO ---
+# --- CONFIGURAÇÃO IRC ---
 SERVER = "irc.ptnet.org"
 PORT = 6667
 NICK = "TheOG"
 PASS = "Nasomet112#"
 CHANNEL = "#TheOG"
-ADMINS = ["Emergency112", "Padre", "CutxiiiPoint"]
 
-# --- CARREGAR JSON (Prioridade Máxima) ---
+# --- ESTADO GLOBAL ---
+START_TIME = datetime.now()
+STALKER_DATA = {}
+STALKER_REQUESTS = {}
 dados = {}
+
+# --- GESTÃO DE DADOS (JSON) ---
 def carregar_dados():
     global dados
-    if os.path.exists('frases.json'):
-        try:
+    try:
+        if os.path.exists('frases.json'):
             with open('frases.json', 'r', encoding='utf-8') as f:
                 dados = json.load(f)
-            force_log("✅ JSON DETETADO: A usar a tua história e frases.")
-        except:
-            force_log("❌ ERRO AO LER JSON.")
-    else:
-        force_log("⚠️ JSON NÃO ENCONTRADO. Usando base de emergência.")
-        dados = {"historia": "História no JSON não encontrada.", "admins": ADMINS}
+                logger.info("Ficheiro frases.json carregado com sucesso.")
+        else:
+            logger.error("ERRO: frases.json não encontrado! A criar base...")
+            criar_base_emergencia()
+    except json.JSONDecodeError as e:
+        logger.error(f"ERRO CRÍTICO NO JSON: {e}. Verifique as vírgulas!")
+        dados = {"admins": ["Emergency112"], "stalker_config": {"alvos_ativos": {}}}
+
+def salvar_dados():
+    try:
+        with open('frases.json', 'w', encoding='utf-8') as f:
+            json.dump(dados, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logger.error(f"Erro ao guardar JSON: {e}")
+
+def criar_base_emergencia():
+    global dados
+    dados = {
+        "admins": ["Emergency112", "Padre", "CutxiiiPoint"],
+        "stalker_config": {"alvos_ativos": {}, "avisos_pro": ["🕵️ Alvo {u} online!"]},
+        "radios_online": [],
+        "frases_entrada": ["TheOG Online!"],
+        "saudacoes": ["Olá {u}!"],
+        "lapadas": ["dá uma lapada em {u}!"],
+        "prendas": ["oferece um café a {u}!"],
+        "evasivas": ["Estou ocupado."],
+        "historia_theog": ["O canal #TheOG foi criado para reunir amigos."]
+    }
+    salvar_dados()
 
 carregar_dados()
 
-# --- ESTADO ---
-START_TIME = datetime.now()
-users_online = []
-stalker_list = []
-
+# --- UTILITÁRIOS ---
 def get_uptime():
-    return str(datetime.now() - START_TIME).split('.')[0]
+    delta = datetime.now() - START_TIME
+    days = delta.days
+    hours, rem = divmod(delta.seconds, 3600)
+    minutes, seconds = divmod(rem, 60)
+    return f"{days}d {hours}h {minutes}m {seconds}s"
 
-def send(irc, msg):
+def send_raw(sock, msg):
     try:
-        irc.send(f"{msg}\r\n".encode('utf-8'))
-        time.sleep(2.0) # Delay de 2s para estabilidade total
-    except: pass
+        sock.send(f"{msg}\r\n".encode('utf-8'))
+    except:
+        pass
 
-# --- TAREFA SOCIAL (20 MIN) ---
-def social_cycle(irc):
-    while True:
-        time.sleep(1200)
-        if users_online:
-            outros = [u for u in users_online if u != NICK and len(u) > 1]
-            if outros:
-                alvo = random.choice(outros)
-                frases = dados.get("puxar_conversa", ["Tudo bem, {u}?"])
-                send(irc, f"PRIVMSG {CHANNEL} :{random.choice(frases).format(u=alvo)}")
-
-# --- PROCESSADOR ---
+# --- LÓGICA DE MENSAGENS E COMANDOS ---
 def handle_msg(user, message, is_private, irc):
+    global dados
     msg = message.lower().strip()
     partes = msg.split()
-    cmd = partes[0] if partes else ""
+    if not partes: return
+    comando = partes[0]
     target = user if is_private else CHANNEL
-    
-    if cmd == "!uptime":
-        send(irc, f"PRIVMSG {target} :🚀 Uptime: {get_uptime()}")
-    
-    elif cmd == "!historia":
-        hist = dados.get("historia", "Sem história no JSON.")
-        send(irc, f"PRIVMSG {target} :📖 {hist}")
 
-    elif cmd == "!radio":
-        radios = dados.get("radios", ["Rádio Comercial"])
-        send(irc, f"PRIVMSG {target} :📻 Sugestão: {random.choice(radios)}")
+    if comando == "!comandos":
+        lista_pode_ver = [
+            "--- 📜 MENU THEOG ---",
+            "!comandos - Esta lista (em PVT).",
+            "!uptime   - Tempo de atividade.",
+            "!stalker <nick> - Relatório WHOIS (PVT).",
+            "!radio    - Sugestão de rádio.",
+            "!historia - A história do canal (PVT).",
+            "!lapada <nick> - Ação no canal.",
+            "!prenda <nick> - Ação no canal."
+        ]
+        if user in dados.get("admins", []):
+            lista_pode_ver.append("--- 🔐 ADMIN (STALKER-PRO) ---")
+            lista_pode_ver.append("!stalkerpro + <nick> - Vigiar entrada.")
+            lista_pode_ver.append("!stalkerpro - <nick> - Parar vigia.")
+            lista_pode_ver.append("!stalkerpro list      - Ver alvos.")
+        lista_pode_ver.append("----------------------")
+        for c in lista_pode_ver:
+            send_raw(irc, f"PRIVMSG {user} :{c}")
+            time.sleep(0.5)
+        return
 
-    elif cmd in ["!stalker", "!watch"] and len(partes) > 1 and user in ADMINS:
-        alvo = partes[1]
-        if alvo not in stalker_list:
-            stalker_list.append(alvo)
-            send(irc, f"WATCH +{alvo}")
-            send(irc, f"PRIVMSG {target} :🕵️ [STALKER] {alvo} sob vigilância.")
+    if comando == "!stalkerpro":
+        if user not in dados.get("admins", []):
+            if is_private: send_raw(irc, f"PRIVMSG {user} :❌ Acesso negado.")
+            return
+        if len(partes) < 2:
+            send_raw(irc, f"PRIVMSG {user} :💡 Uso: !stalkerpro [+ / - / list] [nick]")
+            return
+        acao = partes[1]
+        if acao == "list":
+            vigia = dados.get("stalker_config", {}).get("alvos_ativos", {})
+            if not vigia: send_raw(irc, f"PRIVMSG {user} :📂 Lista de vigia vazia.")
+            else:
+                for alvo, adm in vigia.items():
+                    send_raw(irc, f"PRIVMSG {user} :🕵️ Alvo: {alvo} (Vigiado por: {adm})")
+            return
+        if len(partes) > 2:
+            alvo = partes[2].lower()
+            if acao == "+":
+                dados["stalker_config"]["alvos_ativos"][alvo] = user
+                send_raw(irc, f"WATCH +{alvo}")
+                send_raw(irc, f"PRIVMSG {user} :🎯 Alvo '{alvo}' adicionado.")
+            elif acao == "-":
+                if alvo in dados["stalker_config"]["alvos_ativos"]:
+                    del dados["stalker_config"]["alvos_ativos"][alvo]
+                    send_raw(irc, f"WATCH -{alvo}")
+                    send_raw(irc, f"PRIVMSG {user} :🗑️ Alvo '{alvo}' removido.")
+            salvar_dados()
 
-# --- FLASK ---
+    elif comando == "!stalker":
+        if len(partes) > 1:
+            alvo = partes[1].lower()
+            STALKER_REQUESTS[alvo] = user
+            send_raw(irc, f"WHOIS {alvo} {alvo}")
+            send_raw(irc, f"PRIVMSG {target} :🔎 Investigação sobre '{alvo}' iniciada...")
+
+    elif comando == "!uptime":
+        send_raw(irc, f"PRIVMSG {target} :🚀 {NICK} online há: {get_uptime()}")
+
+    elif comando == "!radio":
+        radios = dados.get("radios_online", [])
+        if radios:
+            r = random.choice(radios)
+            send_raw(irc, f"PRIVMSG {target} :📻 Sugestão: {r['nome']} - {r['url']}")
+
+    elif comando == "!historia":
+        for linha in dados.get("historia_theog", ["História não configurada."]):
+            send_raw(irc, f"PRIVMSG {user} :{linha}")
+            time.sleep(1.0)
+
+    elif comando == "!lapada":
+        alvo = partes[1] if len(partes) > 1 else user
+        frase = random.choice(dados.get("lapadas", ["lapada em {u}!"]))
+        send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION {frase.format(u=alvo)}\x01")
+
+    elif comando == "!prenda":
+        alvo = partes[1] if len(partes) > 1 else user
+        frase = random.choice(dados.get("prendas", ["oferece algo a {u}!"]))
+        send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION {frase.format(u=alvo)}\x01")
+
+    elif NICK.lower() in msg:
+        send_raw(irc, f"PRIVMSG {target} :{user}: {random.choice(dados.get('evasivas', ['Estou ocupado!']))}")
+
+# --- PROCESSAMENTO IRC ---
+def parse_irc_lines(line, irc):
+    global dados
+    partes = line.split()
+    if not partes: return
+
+    # Se o nick estiver ocupado, limpa e sai para esperar o ciclo de 2 min
+    if " 433 " in line:
+        logger.warning(f"Nick {NICK} ocupado. Enviando GHOST e desconectando para limpar.")
+        send_raw(irc, f"PRIVMSG NickServ :GHOST {NICK} {PASS}")
+        irc.close() 
+        return
+
+    if " 600 " in line and len(partes) > 3:
+        u_alvo = partes[3].lower()
+        vigia = dados.get("stalker_config", {}).get("alvos_ativos", {})
+        if u_alvo in vigia:
+            adm = vigia[u_alvo]
+            avisos = dados.get("stalker_config", {}).get("avisos_pro", ["🕵️ Alvo {u} entrou!"])
+            aviso = random.choice(avisos).format(u=u_alvo)
+            send_raw(irc, f"PRIVMSG {adm} :{aviso}")
+
+    if any(x in line for x in [" 311 ", " 317 ", " 318 ", " 319 "]):
+        try:
+            alvo = partes[3].lower()
+            if alvo in STALKER_REQUESTS:
+                solicitante = STALKER_REQUESTS[alvo]
+                if alvo not in STALKER_DATA: STALKER_DATA[alvo] = {"nick": partes[3]}
+                if " 311 " in line: STALKER_DATA[alvo]["info"] = f"{partes[4]}@{partes[5]}"
+                elif " 319 " in line: STALKER_DATA[alvo]["canais"] = line.split(" :", 1)[1]
+                elif " 318 " in line:
+                    d = STALKER_DATA[alvo]
+                    send_raw(irc, f"PRIVMSG {solicitante} :🕵️ REPORT: {d['nick']} | Host: {d.get('info','?')} | Canais: {d.get('canais','?')}")
+                    STALKER_DATA.pop(alvo, None)
+                    STALKER_REQUESTS.pop(alvo, None)
+        except: pass
+
+# --- SERVIDOR WEB ---
 app = Flask(__name__)
 @app.route('/')
-def home(): return f"TheOG Ativo - {get_uptime()}"
+def home(): return f"TheOG Bot Ativo - Uptime: {get_uptime()}"
 
-# --- BOT CORE ---
+# --- LOOP PRINCIPAL ---
 def run_bot():
-    global users_online
     while True:
+        irc = None
         try:
-            force_log("--- A LIGAR (ANTI-DUPLICAÇÃO ATIVO) ---")
+            logger.info(f"Conectando a {SERVER}...")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            irc.settimeout(240)
+            irc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            irc.settimeout(240) 
             irc.connect((SERVER, PORT))
             
-            # EXPULSAR FANTASMA ANTES DE TUDO
-            irc.send(f"PASS {PASS}\r\n".encode())
-            # Entra com nick temporário para dar o GHOST
-            temp_nick = f"OG_{random.randint(100,999)}"
-            irc.send(f"NICK {temp_nick}\r\n".encode())
-            irc.send(f"USER {NICK} 8 * :TheOG Manager\r\n".encode())
+            send_raw(irc, f"PASS {PASS}") # Garante o envio da pass antes do Nick
+            send_raw(irc, f"NICK {NICK}")
+            send_raw(irc, f"USER {NICK} 8 * :TheOG Bot")
             
-            time.sleep(2)
-            # Mata o bot antigo que ficou preso
-            irc.send(f"PRIVMSG NickServ :GHOST {NICK} {PASS}\r\n".encode())
-            force_log(f"Comando GHOST enviado para libertar o nick {NICK}")
-            time.sleep(3)
-            
-            # Agora sim, assume o nick real
-            irc.send(f"NICK {NICK}\r\n".encode())
-            
-            threading.Thread(target=social_cycle, args=(irc,), daemon=True).start()
-
             while True:
-                buffer = irc.recv(4096).decode("utf-8", errors="ignore")
-                if not buffer: break
+                data = irc.recv(4096).decode("utf-8", errors="ignore")
+                if not data: break
                 
-                for line in buffer.split("\r\n"):
+                for line in data.split("\r\n"):
                     if not line: continue
-                    if line.startswith("PING"):
-                        irc.send(f"PONG {line.split()[1]}\r\n".encode())
-                        continue
-
-                    # Se mesmo assim der erro de nick ocupado
-                    if " 433 " in line:
-                        force_log("Nick ainda ocupado, tentando GHOST novamente...")
-                        irc.send(f"PRIVMSG NickServ :GHOST {NICK} {PASS}\r\n".encode())
-                        time.sleep(5)
-                        irc.send(f"NICK {NICK}\r\n".encode())
-
+                    if line.startswith("PING"): 
+                        send_raw(irc, f"PONG {line.split()[1]}")
+                    
+                    parse_irc_lines(line, irc)
+                    
                     if " 376 " in line or " 422 " in line:
-                        send(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
-                        send(irc, f"JOIN {CHANNEL}")
-                        send(irc, f"NAMES {CHANNEL}")
-                        for a in stalker_list: send(irc, f"WATCH +{a}")
+                        send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
+                        time.sleep(2)
+                        send_raw(irc, f"JOIN {CHANNEL}")
+                        entrada = random.choice(dados.get('frases_entrada', ['Olá!']))
+                        send_raw(irc, f"PRIVMSG {CHANNEL} :{entrada}")
+                        for a in dados.get("stalker_config", {}).get("alvos_ativos", {}):
+                            send_raw(irc, f"WATCH +{a}")
 
-                    # Alertas Stalker
-                    if " 600 " in line:
-                        send(irc, f"PRIVMSG {CHANNEL} :🕵️ [STALKER] ONLINE: {line.split()[3]}")
-                    if " 601 " in line:
-                        send(irc, f"PRIVMSG {CHANNEL} :🕵️ [STALKER] OFFLINE: {line.split()[3]}")
-
-                    if " 353 " in line:
-                        nicks = line.split(" :")[1].split()
-                        users_online = [n.strip("@+ ") for n in nicks]
-
-                    if " JOIN " in line and CHANNEL in line:
+                    if " JOIN " in line and f" :{CHANNEL}" in line:
                         u = line.split('!')[0][1:]
-                        if u != NICK:
-                            if u not in users_online: users_online.append(u)
-                            if u != "Emergency112":
-                                tipo = "saudacoes_admins" if u in ADMINS else "saudacoes_comuns"
-                                frases = dados.get(tipo, ["Olá {u}"])
-                                send(irc, f"PRIVMSG {CHANNEL} :{random.choice(frases).format(u=u)}")
+                        if u != NICK and u != "Emergency112":
+                            msg = random.choice(dados.get('saudacoes', ['Olá {u}!'])).format(u=u)
+                            send_raw(irc, f"PRIVMSG {CHANNEL} :{msg}")
 
                     if " PRIVMSG " in line:
                         try:
-                            u_nick = line.split('!')[0][1:]
-                            u_target = line.split(' PRIVMSG ')[1].split(' :')[0]
-                            u_content = line.split(' PRIVMSG ')[1].split(' :', 1)[1]
-                            handle_msg(u_nick, u_content, u_target == NICK, irc)
+                            u_from = line.split('!')[0][1:]
+                            t_dest = line.split(' PRIVMSG ')[1].split(' :')[0]
+                            m_text = line.split(' PRIVMSG ')[1].split(' :', 1)[1]
+                            handle_msg(u_from, m_text, t_dest == NICK, irc)
                         except: continue
-
         except Exception as e:
-            force_log(f"ERRO: {e}")
+            logger.error(f"Erro: {e}. Aguardando 2 minutos para reconectar...")
         finally:
-            if irc: irc.close()
-            users_online = []
-            # ESPERA LONGA PARA EVITAR DUPLICADOS NO RENDER
-            force_log("Aguardando 45s para limpeza de sessão...")
-            time.sleep(45)
+            if irc:
+                try: irc.close()
+                except: pass
+            # PAUSA CRÍTICA DE 2 MINUTOS PARA EVITAR THEOG_1, THEOG_2...
+            time.sleep(120)
 
 if __name__ == "__main__":
-    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000))), daemon=True).start()
+    port_render = int(os.environ.get("PORT", 5000))
+    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port_render), daemon=True).start()
     run_bot()
