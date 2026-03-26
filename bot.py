@@ -7,17 +7,35 @@ import logging
 import sys
 import json
 from datetime import datetime
-from flask import Flask
+from flask import Flask, Response
 
-# --- CONFIGURAÇÃO DE LOGS FORÇADOS ---
+# --- CONFIGURAÇÃO DE LOGS ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', handlers=[logging.StreamHandler(sys.stdout)])
 logger = logging.getLogger("TheOG_Bot")
 
+LOG_FILE = "chat_log.txt"
+
 def force_log(msg):
-    """Garante que a info aparece no painel do Render na hora."""
+    """Log detalhado para o painel do Render e para o ficheiro local."""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print(f"{timestamp} [RENDER_DEBUG] {msg}")
+    log_line = f"{timestamp} [RENDER_DEBUG] {msg}"
+    print(log_line)
     sys.stdout.flush()
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(log_line + "\n")
+    except:
+        pass
+
+def log_chat(user, channel, message):
+    """Regista conversas do canal no ficheiro de log."""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    log_line = f"[{timestamp}] [{channel}] {user}: {message}"
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(log_line + "\n")
+    except:
+        pass
 
 # --- CONFIGURAÇÃO IRC ---
 SERVER = "irc.ptnet.org"
@@ -39,20 +57,23 @@ def carregar_dados():
         if os.path.exists('frases.json'):
             with open('frases.json', 'r', encoding='utf-8') as f:
                 dados = json.load(f)
-                force_log("✅ Ficheiro frases.json carregado com sucesso.")
+                n_prendas = len(dados.get("prendas", []))
+                n_lapadas = len(dados.get("lapadas", []))
+                force_log(f"✅ JSON Carregado: {n_prendas} prendas e {n_lapadas} lapadas detetadas.")
         else:
-            force_log("❌ ERRO: frases.json não encontrado! Criando base...")
+            force_log("❌ ERRO: frases.json não encontrado no GitHub/Render!")
             criar_base_emergencia()
-    except json.JSONDecodeError as e:
-        force_log(f"🔥 ERRO NO JSON: {e}. Verifique as vírgulas!")
-        dados = {"admins": ["Emergency112"], "stalker_config": {"alvos_ativos": {}}}
+    except Exception as e:
+        force_log(f"🔥 ERRO AO LER JSON: {e}")
+        criar_base_emergencia()
 
 def salvar_dados():
+    """Guarda o estado atual no JSON (Nota: No Render isto é temporário até ao restart)."""
     try:
         with open('frases.json', 'w', encoding='utf-8') as f:
             json.dump(dados, f, indent=2, ensure_ascii=False)
     except Exception as e:
-        force_log(f"Erro ao guardar JSON: {e}")
+        force_log(f"Erro ao salvar JSON: {e}")
 
 def criar_base_emergencia():
     global dados
@@ -67,7 +88,6 @@ def criar_base_emergencia():
         "evasivas": ["Estou ocupado."],
         "historia_theog": ["O canal #TheOG foi criado para reunir amigos."]
     }
-    salvar_dados()
 
 carregar_dados()
 
@@ -85,35 +105,26 @@ def send_raw(sock, msg):
     except:
         pass
 
-# --- LÓGICA DE MENSAGENS E COMANDOS (ORIGINAL) ---
+# --- LÓGICA DE MENSAGENS E COMANDOS ---
 def handle_msg(user, message, is_private, irc):
     global dados
-    msg = message.lower().strip()
-    partes = msg.split()
+    msg_original = message.strip()
+    msg_lower = msg_original.lower()
+    partes = msg_lower.split()
     if not partes: return
     comando = partes[0]
     target = user if is_private else CHANNEL
 
+    log_chat(user, "PVT" if is_private else CHANNEL, msg_original)
+
     if comando == "!comandos":
-        lista_pode_ver = [
-            "--- 📜 MENU THEOG ---",
-            "!comandos - Esta lista (em PVT).",
-            "!uptime   - Tempo de atividade.",
-            "!stalker <nick> - Relatório WHOIS (PVT).",
-            "!radio    - Sugestão de rádio.",
-            "!historia - A história do canal (PVT).",
-            "!lapada <nick> - Ação no canal.",
-            "!prenda <nick> - Ação no canal."
-        ]
+        lista = ["--- 📜 MENU THEOG ---", "!uptime, !radio, !historia, !stalker <nick>", "!lapada <nick>, !prenda <nick>"]
         if user in dados.get("admins", []):
-            lista_pode_ver.append("--- 🔐 ADMIN (STALKER-PRO) ---")
-            lista_pode_ver.append("!stalkerpro + <nick> - Vigiar entrada.")
-            lista_pode_ver.append("!stalkerpro - <nick> - Parar vigia.")
-            lista_pode_ver.append("!stalkerpro list      - Ver alvos.")
-        lista_pode_ver.append("----------------------")
-        for c in lista_pode_ver:
+            lista.append("--- 🔐 ADMIN (STALKER-PRO) ---")
+            lista.append("!stalkerpro [+ / - / list] [nick]")
+        for c in lista:
             send_raw(irc, f"PRIVMSG {user} :{c}")
-            time.sleep(0.5)
+            time.sleep(0.4)
         return
 
     if comando == "!stalkerpro":
@@ -134,11 +145,11 @@ def handle_msg(user, message, is_private, irc):
         if len(partes) > 2:
             alvo = partes[2].lower()
             if acao == "+":
-                dados["stalker_config"]["alvos_ativos"][alvo] = user
+                dados.setdefault("stalker_config", {}).setdefault("alvos_ativos", {})[alvo] = user
                 send_raw(irc, f"WATCH +{alvo}")
-                send_raw(irc, f"PRIVMSG {user} :🎯 Alvo '{alvo}' adicionado.")
+                send_raw(irc, f"PRIVMSG {user} :🎯 Alvo '{alvo}' adicionado à vigia.")
             elif acao == "-":
-                if alvo in dados["stalker_config"]["alvos_ativos"]:
+                if alvo in dados.get("stalker_config", {}).get("alvos_ativos", {}):
                     del dados["stalker_config"]["alvos_ativos"][alvo]
                     send_raw(irc, f"WATCH -{alvo}")
                     send_raw(irc, f"PRIVMSG {user} :🗑️ Alvo '{alvo}' removido.")
@@ -149,10 +160,20 @@ def handle_msg(user, message, is_private, irc):
             alvo = partes[1].lower()
             STALKER_REQUESTS[alvo] = user
             send_raw(irc, f"WHOIS {alvo} {alvo}")
-            send_raw(irc, f"PRIVMSG {target} :🔎 Investigação sobre '{alvo}' iniciada...")
+            send_raw(irc, f"PRIVMSG {target} :🔎 Investigando '{alvo}'...")
+
+    elif comando == "!prenda":
+        alvo = partes[1] if len(partes) > 1 else user
+        frase = random.choice(dados.get("prendas", ["oferece um café a {u}!"]))
+        send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION {frase.format(u=alvo)}\x01")
+
+    elif comando == "!lapada":
+        alvo = partes[1] if len(partes) > 1 else user
+        frase = random.choice(dados.get("lapadas", ["dá uma lapada em {u}!"]))
+        send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION {frase.format(u=alvo)}\x01")
 
     elif comando == "!uptime":
-        send_raw(irc, f"PRIVMSG {target} :🚀 {NICK} online há: {get_uptime()}")
+        send_raw(irc, f"PRIVMSG {target} :🚀 Uptime: {get_uptime()}")
 
     elif comando == "!radio":
         radios = dados.get("radios_online", [])
@@ -161,84 +182,80 @@ def handle_msg(user, message, is_private, irc):
             send_raw(irc, f"PRIVMSG {target} :📻 Sugestão: {r['nome']} - {r['url']}")
 
     elif comando == "!historia":
-        for linha in dados.get("historia_theog", ["História não configurada."]):
+        for linha in dados.get("historia_theog", []):
             send_raw(irc, f"PRIVMSG {user} :{linha}")
-            time.sleep(1.0)
+            time.sleep(0.8)
 
-    elif comando == "!lapada":
-        alvo = partes[1] if len(partes) > 1 else user
-        frase = random.choice(dados.get("lapadas", ["lapada em {u}!"]))
-        send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION {frase.format(u=alvo)}\x01")
-
-    elif comando == "!prenda":
-        alvo = partes[1] if len(partes) > 1 else user
-        frase = random.choice(dados.get("prendas", ["oferece algo a {u}!"]))
-        send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION {frase.format(u=alvo)}\x01")
-
-    elif NICK.lower() in msg:
+    elif NICK.lower() in msg_lower:
         send_raw(irc, f"PRIVMSG {target} :{user}: {random.choice(dados.get('evasivas', ['Estou ocupado!']))}")
 
-# --- PROCESSAMENTO IRC (ORIGINAL COM LOGS) ---
+# --- PROCESSAMENTO IRC ---
 def parse_irc_lines(line, irc):
     global dados
     partes = line.split()
     if not partes: return
 
-    if " 433 " in line:
-        force_log(f"⚠️ NICK EM USO. Enviando GHOST para {NICK}...")
-        send_raw(irc, f"PRIVMSG NickServ :GHOST {NICK} {PASS}")
-        return
-
-    if " 600 " in line and len(partes) > 3:
-        u_alvo = partes[3].lower()
-        vigia = dados.get("stalker_config", {}).get("alvos_ativos", {})
-        if u_alvo in vigia:
-            adm = vigia[u_alvo]
-            avisos = dados.get("stalker_config", {}).get("avisos_pro", ["🕵️ Alvo {u} entrou!"])
-            aviso = random.choice(avisos).format(u=u_alvo)
-            send_raw(irc, f"PRIVMSG {adm} :{aviso}")
-
+    # Resposta ao WHOIS
     if any(x in line for x in [" 311 ", " 317 ", " 318 ", " 319 "]):
         try:
             alvo = partes[3].lower()
             if alvo in STALKER_REQUESTS:
-                solicitante = STALKER_REQUESTS[alvo]
                 if alvo not in STALKER_DATA: STALKER_DATA[alvo] = {"nick": partes[3]}
                 if " 311 " in line: STALKER_DATA[alvo]["info"] = f"{partes[4]}@{partes[5]}"
                 elif " 319 " in line: STALKER_DATA[alvo]["canais"] = line.split(" :", 1)[1]
                 elif " 318 " in line:
                     d = STALKER_DATA[alvo]
-                    send_raw(irc, f"PRIVMSG {solicitante} :🕵️ REPORT: {d['nick']} | Host: {d.get('info','?')} | Canais: {d.get('canais','?')}")
+                    send_raw(irc, f"PRIVMSG {STALKER_REQUESTS[alvo]} :🕵️ REPORT: {d['nick']} | Host: {d.get('info','?')} | Canais: {d.get('canais','?')}")
                     STALKER_DATA.pop(alvo, None)
                     STALKER_REQUESTS.pop(alvo, None)
         except: pass
 
+    # Notificação do WATCH (StalkerPro)
+    if " 600 " in line and len(partes) > 3:
+        u_alvo = partes[3].lower()
+        vigia = dados.get("stalker_config", {}).get("alvos_ativos", {})
+        if u_alvo in vigia:
+            adm = vigia[u_alvo]
+            send_raw(irc, f"PRIVMSG {adm} :🕵️ ALERTA: O teu alvo '{u_alvo}' acabou de entrar no IRC!")
+
+    # 353 Lista de utilizadores (RPL_NAMREPLY)
+    if " 353 " in line:
+        users_list = line.split(" :")[-1]
+        force_log(f"👥 UTILIZADORES NO CANAL: {users_list}")
+
+    # Confirmação de entrada (JOIN)
+    if f":{NICK}!" in line and " JOIN " in line:
+        force_log(f"🚩 SUCESSO: O bot entrou no canal {CHANNEL}")
+        send_raw(irc, f"NAMES {CHANNEL}")
+
 # --- SERVIDOR WEB ---
 app = Flask(__name__)
 @app.route('/')
-def home(): return f"TheOG Ativo - Uptime: {get_uptime()}"
+def home(): return f"<h1>TheOG Online</h1><p>Uptime: {get_uptime()}</p><a href='/logs'>Ver Logs</a>"
 
-# --- LOOP PRINCIPAL (ORIGINAL + ESTABILIDADE RENDER) ---
+@app.route('/logs')
+def view_logs():
+    if not os.path.exists(LOG_FILE): return "Sem logs."
+    with open(LOG_FILE, "r", encoding="utf-8") as f: content = f.read()
+    return Response(content, mimetype='text/plain')
+
+# --- LOOP PRINCIPAL ---
 def run_bot():
     while True:
         irc = None
         try:
-            force_log(f"🛰️ Tentando ligar a {SERVER}:{PORT}...")
+            force_log(f"🛰️ Conectando a {SERVER}...")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            irc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            irc.settimeout(240) 
+            irc.settimeout(240)
             irc.connect((SERVER, PORT))
             
-            force_log("📡 Socket conectado. Enviando credenciais...")
             send_raw(irc, f"PASS {PASS}")
             send_raw(irc, f"NICK {NICK}")
             send_raw(irc, f"USER {NICK} 8 * :TheOG Bot")
             
             while True:
                 data = irc.recv(4096).decode("utf-8", errors="ignore")
-                if not data: 
-                    force_log("🔌 Conexão fechada pelo servidor.")
-                    break
+                if not data: break
                 
                 for line in data.split("\r\n"):
                     if not line: continue
@@ -246,27 +263,24 @@ def run_bot():
                         send_raw(irc, f"PONG {line.split()[1]}")
                         continue
                     
-                    # LOG DE TODAS AS MENSAGENS NO RENDER (DEBUG)
-                    if "PRIVMSG" in line:
-                        force_log(f"💬 IRC_MSG: {line}")
-                    
                     parse_irc_lines(line, irc)
                     
                     if " 376 " in line or " 422 " in line:
-                        force_log("🏁 Fim do MOTD. Identificando e entrando...")
                         send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         time.sleep(2)
                         send_raw(irc, f"JOIN {CHANNEL}")
-                        entrada = random.choice(dados.get('frases_entrada', ['Olá!']))
-                        send_raw(irc, f"PRIVMSG {CHANNEL} :{entrada}")
+                        # WATCH para os alvos ativos ao ligar
                         for a in dados.get("stalker_config", {}).get("alvos_ativos", {}):
                             send_raw(irc, f"WATCH +{a}")
+                        
+                        entradas = dados.get('frases_entrada', ['TheOG Online!'])
+                        send_raw(irc, f"PRIVMSG {CHANNEL} :{random.choice(entradas)}")
 
                     if " JOIN " in line and f" :{CHANNEL}" in line:
                         u = line.split('!')[0][1:]
-                        if u != NICK and u != "Emergency112":
-                            msg = random.choice(dados.get('saudacoes', ['Olá {u}!'])).format(u=u)
-                            send_raw(irc, f"PRIVMSG {CHANNEL} :{msg}")
+                        if u != NICK:
+                            saudacoes = dados.get('saudacoes', ['Olá {u}!'])
+                            send_raw(irc, f"PRIVMSG {CHANNEL} :{random.choice(saudacoes).format(u=u)}")
 
                     if " PRIVMSG " in line:
                         try:
@@ -276,17 +290,12 @@ def run_bot():
                             handle_msg(u_from, m_text, t_dest == NICK, irc)
                         except: continue
         except Exception as e:
-            force_log(f"💥 ERRO CRÍTICO: {e}")
+            force_log(f"💥 ERRO: {e}")
         finally:
-            if irc:
-                try: irc.close()
-                except: pass
-            force_log("⏳ Aguardando 120s para garantir limpeza do Nick...")
-            time.sleep(120)
+            if irc: irc.close()
+            time.sleep(60)
 
 if __name__ == "__main__":
     port_render = int(os.environ.get("PORT", 5000))
-    # Inicia WebServer
     threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port_render), daemon=True).start()
-    # Inicia Bot
     run_bot()
