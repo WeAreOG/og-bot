@@ -6,6 +6,7 @@ import random
 import logging
 import sys
 import json
+import re
 from datetime import datetime
 from flask import Flask
 
@@ -62,6 +63,10 @@ def get_uptime():
     minutes, seconds = divmod(rem, 60)
     return f"{days}d {hours}h {minutes}m"
 
+def strip_irc_codes(text):
+    """Remove cores e formatação do IRC que podem quebrar o reconhecimento de comandos."""
+    return re.sub(r'\x03(?:\d{1,2}(?:,\d{1,2})?)?|[\x02\x0F\x16\x1D\x1F]', '', text)
+
 def send_raw(sock, msg):
     try:
         if sock:
@@ -69,19 +74,19 @@ def send_raw(sock, msg):
     except: pass
 
 # --- LÓGICA DE COMANDOS IRC ---
-def handle_irc_msg(user, message, target_channel, irc):
+def handle_irc_msg(user, message, target, irc):
     global dados
-    msg_strip = message.strip()
-    partes = msg_strip.split()
+    # Limpa a mensagem de códigos de cores e espaços extras
+    msg_clean = strip_irc_codes(message).strip()
+    partes = msg_clean.split()
     if not partes: return
     
     cmd = partes[0].lower()
-    # Se o target_channel for o nick do bot, é uma Private Message (PV)
-    is_private = (target_channel.lower() == NICK.lower())
-    # Onde responder: se for PV, responde ao user. Se for canal, responde ao canal.
+    is_private = (target.lower() == NICK.lower())
     reply_to = user if is_private else CHANNEL
 
-    # --- COMANDOS ---
+    force_log(f"DEBUG: Comando detetado: {cmd} vindo de {user}")
+
     if cmd == "!uptime":
         send_raw(irc, f"PRIVMSG {reply_to} :🚀 Uptime: {get_uptime()}")
 
@@ -89,7 +94,7 @@ def handle_irc_msg(user, message, target_channel, irc):
         linhas = dados.get("historia_theog", ["História não configurada."])
         for linha in linhas:
             send_raw(irc, f"PRIVMSG {reply_to} :{linha}")
-            time.sleep(0.8)
+            time.sleep(1)
 
     elif cmd == "!prenda":
         alvo = partes[1] if len(partes) > 1 else user
@@ -105,20 +110,11 @@ def handle_irc_msg(user, message, target_channel, irc):
         if user not in dados.get("admins", []): return
         if len(partes) < 2: return
         acao = partes[1]
-        if acao == "list":
-            vigia = dados.get("stalker_config", {}).get("alvos_ativos", {})
-            for a, adm in vigia.items(): send_raw(irc, f"PRIVMSG {user} :🕵️ {a} (por {adm})")
-        elif len(partes) > 2:
+        if acao == "+":
             alvo = partes[2].lower()
-            if acao == "+":
-                dados.setdefault("stalker_config", {}).setdefault("alvos_ativos", {})[alvo] = user
-                send_raw(irc, f"WATCH +{alvo}")
-                send_raw(irc, f"PRIVMSG {user} :🎯 {alvo} vigiado.")
-            elif acao == "-":
-                if alvo in dados.get("stalker_config", {}).get("alvos_ativos", {}):
-                    del dados["stalker_config"]["alvos_ativos"][alvo]
-                    send_raw(irc, f"WATCH -{alvo}")
-                    send_raw(irc, f"PRIVMSG {user} :❌ {alvo} removido.")
+            dados.setdefault("stalker_config", {}).setdefault("alvos_ativos", {})[alvo] = user
+            send_raw(irc, f"WATCH +{alvo}")
+            send_raw(irc, f"PRIVMSG {user} :🎯 {alvo} vigiado.")
             salvar_dados()
 
 # --- LOOP PRINCIPAL ---
@@ -127,6 +123,7 @@ def run_bot():
         try:
             force_log(f"🛰️ Conectando a {SERVER}...")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            irc.settimeout(300) # Evita que o bot fique pendurado
             irc.connect((SERVER, PORT))
             
             send_raw(irc, f"PASS {PASS}")
@@ -135,7 +132,12 @@ def run_bot():
             
             buffer = ""
             while True:
-                data = irc.recv(4096).decode("utf-8", errors="ignore")
+                try:
+                    data = irc.recv(4096).decode("utf-8", errors="ignore")
+                except socket.timeout:
+                    send_raw(irc, "PING :keepalive")
+                    continue
+                
                 if not data: break
                 
                 buffer += data
@@ -143,42 +145,33 @@ def run_bot():
                     line, buffer = buffer.split("\r\n", 1)
                     if not line: continue
                     
-                    # 1. PING/PONG
+                    # Resposta PING (Vital)
                     if line.startswith("PING"):
-                        send_raw(irc, f"PONG {line.split()[1]}")
+                        send_raw(irc, f"PONG {line.split(':')[1] if ':' in line else line.split()[1]}")
                         continue
 
-                    # 2. LOGIN / JOIN
+                    # LOGIN / JOIN
                     if " 376 " in line or " 422 " in line:
                         send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         time.sleep(2)
                         send_raw(irc, f"JOIN {CHANNEL}")
-                        for a in dados.get("stalker_config", {}).get("alvos_ativos", {}):
-                            send_raw(irc, f"WATCH +{a}")
                         force_log(f"🚩 Online em {CHANNEL}")
 
-                    # 3. MENSAGENS (Onde estava o erro)
+                    # PROCESSAMENTO DE CHAT
                     if " PRIVMSG " in line:
-                        # Exemplo: :Nick!User@Host PRIVMSG #Canal :Mensagem
-                        try:
-                            # Extrai o Nick (tudo entre o primeiro ':' e o primeiro '!')
-                            sender_nick = line.split('!')[0][1:]
+                        # Parsing ultra-seguro usando Regex
+                        match = re.match(r'^:([^!]+)!.* PRIVMSG ([^ ]+) :(.*)$', line)
+                        if match:
+                            user_nick = match.group(1)
+                            target_dest = match.group(2)
+                            message_text = match.group(3)
                             
-                            # Extrai o Destino e a Mensagem
-                            # partes_msg[0] terá "#Canal" ou "TheOG"
-                            # partes_msg[1] terá o texto da mensagem
-                            partes_msg = line.split(' PRIVMSG ', 1)[1].split(' :', 1)
-                            target = partes_msg[0].strip()
-                            texto = partes_msg[1]
-                            
-                            force_log(f"[{target}] <{sender_nick}> {texto}")
-                            handle_irc_msg(sender_nick, texto, target, irc)
-                        except Exception as e:
-                            force_log(f"⚠️ Erro ao processar linha: {e}")
+                            force_log(f"LOG: [{target_dest}] <{user_nick}> {message_text}")
+                            handle_irc_msg(user_nick, message_text, target_dest, irc)
 
         except Exception as e:
             force_log(f"💥 Erro Geral: {e}")
-            time.sleep(20)
+            time.sleep(15)
 
 # --- SERVIDOR WEB ---
 app = Flask(__name__)
