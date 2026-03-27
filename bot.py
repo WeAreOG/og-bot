@@ -28,16 +28,22 @@ CHANNEL = "#TheOG"
 # --- ESTADO GLOBAL ---
 START_TIME = datetime.now()
 dados = {}
+# Garante que o caminho do ficheiro é relativo ao script
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+JSON_FILE = os.path.join(BASE_DIR, 'frases.json')
 
 def carregar_dados():
     global dados
     try:
-        if os.path.exists('frases.json'):
-            with open('frases.json', 'r', encoding='utf-8') as f:
+        if os.path.exists(JSON_FILE):
+            with open(JSON_FILE, 'r', encoding='utf-8') as f:
                 dados = json.load(f)
-                force_log(f"✅ JSON CARREGADO: {len(dados.get('admins', []))} admins e reforços positivos prontos.")
+                # Logs de verificação para sabermos o que foi lido
+                n_reforcos = len(dados.get("reforcos_positivos", []))
+                n_prendas = len(dados.get("prendas", []))
+                force_log(f"✅ JSON CARREGADO: {n_reforcos} reforços e {n_prendas} prendas encontradas.")
         else:
-            force_log("⚠️ frases.json NÃO ENCONTRADO! Criando estrutura com reforços...")
+            force_log("⚠️ frases.json NÃO ENCONTRADO! Criando estrutura padrão...")
             dados = {
                 "admins": ["Emergency112"], 
                 "stalker_config": {"alvos_ativos": {}}, 
@@ -45,7 +51,7 @@ def carregar_dados():
                 "lapadas": ["dá uma lapada em {u}"], 
                 "reforcos_positivos": ["És o maior, {u}!", "Bom trabalho, {u}!", "Continua assim!"],
                 "respostas_mencao": ["Diz lá, {u}?", "Estou aqui!"],
-                "historia_theog": ["História no JSON."]
+                "historia_theog": ["História base no JSON."]
             }
             salvar_dados()
     except Exception as e:
@@ -53,10 +59,12 @@ def carregar_dados():
 
 def salvar_dados():
     try:
-        with open('frases.json', 'w', encoding='utf-8') as f:
+        with open(JSON_FILE, 'w', encoding='utf-8') as f:
             json.dump(dados, f, indent=2, ensure_ascii=False)
-    except: pass
+    except Exception as e:
+        force_log(f"🔥 Erro ao salvar JSON: {e}")
 
+# Inicializa os dados antes de começar
 carregar_dados()
 
 def get_uptime():
@@ -90,7 +98,7 @@ def handle_irc_msg(user, message, target, irc):
     lista_admins = dados.get("admins", [])
     is_admin = user in lista_admins
 
-    # --- 1. COMANDO !COMANDOS (SÓ EM PV) ---
+    # --- 1. COMANDO !COMANDOS ---
     if cmd == "!comandos":
         base = "!comandos, !uptime, !historia, !prenda <nick>, !lapada <nick>"
         if is_admin:
@@ -98,7 +106,6 @@ def handle_irc_msg(user, message, target, irc):
         else:
             msg_pvt = f"🛠️ {base}"
         send_raw(irc, f"PRIVMSG {user} :{msg_pvt}")
-        force_log(f"📩 PV enviado para {user}")
         return
 
     # --- 2. COMANDOS DIRETOS ---
@@ -106,19 +113,21 @@ def handle_irc_msg(user, message, target, irc):
         send_raw(irc, f"PRIVMSG {reply_to} :🚀 Uptime: {get_uptime()}")
     
     elif cmd == "!historia":
-        linhas = dados.get("historia_theog", ["Sem história no JSON."])
+        linhas = dados.get("historia_theog", ["Sem história disponível."])
         for linha in linhas:
             send_raw(irc, f"PRIVMSG {reply_to} :{linha}")
             time.sleep(0.8)
 
     elif cmd == "!prenda":
         alvo = partes[1] if len(partes) > 1 else user
-        f = random.choice(dados.get("prendas", ["oferece um café a {u}"]))
+        pool = dados.get("prendas", ["oferece um café a {u}"])
+        f = random.choice(pool)
         send_raw(irc, f"PRIVMSG {reply_to} :\x01ACTION {f.replace('{u}', alvo)}\x01")
 
     elif cmd == "!lapada":
         alvo = partes[1] if len(partes) > 1 else user
-        f = random.choice(dados.get("lapadas", ["dá uma lapada em {u}"]))
+        pool = dados.get("lapadas", ["dá uma lapada em {u}"])
+        f = random.choice(pool)
         send_raw(irc, f"PRIVMSG {reply_to} :\x01ACTION {f.replace('{u}', alvo)}\x01")
 
     elif cmd == "!stalkerpro" and is_admin:
@@ -140,16 +149,15 @@ def handle_irc_msg(user, message, target, irc):
                 send_raw(irc, f"PRIVMSG {user} :❌ {alvo} removido.")
             salvar_dados()
 
-    # --- 3. MENÇÃO AO BOT (INTERAÇÃO COM REFORÇOS POSITIVOS) ---
+    # --- 3. MENÇÃO AO BOT (REFORÇOS POSITIVOS) ---
     elif NICK.lower() in msg_lower:
-        # Junta respostas normais e reforços positivos do JSON
-        pool_respostas = dados.get("respostas_mencao", []) + dados.get("reforcos_positivos", [])
+        # Puxa as listas atualizadas do dicionário 'dados' que veio do JSON
+        respostas = dados.get("respostas_mencao", ["Diz lá, {u}?"])
+        reforcos = dados.get("reforcos_positivos", ["És o maior, {u}!"])
+        pool_respostas = respostas + reforcos
         
-        if pool_respostas:
-            escolha = random.choice(pool_respostas)
-            send_raw(irc, f"PRIVMSG {reply_to} :{escolha.replace('{u}', user)}")
-        else:
-            send_raw(irc, f"PRIVMSG {reply_to} :Chamaste, {user}?")
+        escolha = random.choice(pool_respostas)
+        send_raw(irc, f"PRIVMSG {reply_to} :{escolha.replace('{u}', user)}")
 
 # --- LOOP PRINCIPAL ---
 def run_bot():
@@ -183,6 +191,7 @@ def run_bot():
                         send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         time.sleep(2)
                         send_raw(irc, f"JOIN {CHANNEL}")
+                        # Reativa o WATCH para alvos salvos
                         for a in dados.get("stalker_config", {}).get("alvos_ativos", {}):
                             send_raw(irc, f"WATCH +{a}")
                         force_log(f"🚩 Online em {CHANNEL}")
@@ -194,15 +203,16 @@ def run_bot():
                             handle_irc_msg(u_nick, u_msg, u_target, irc)
 
         except Exception as e:
-            force_log(f"💥 Erro: {e}")
+            force_log(f"💥 Erro na conexão: {e}")
             time.sleep(10)
 
-# --- SERVIDOR WEB ---
+# --- SERVIDOR WEB (PARA MANTER VIVO NO RENDER/HEROKU) ---
 app = Flask(__name__)
 @app.route('/')
 def home(): return "TheOG Bot Online."
 
 if __name__ == "__main__":
-    p = int(os.environ.get("PORT", 5000))
-    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=p), daemon=True).start()
+    port = int(os.environ.get("PORT", 5000))
+    # Inicia Flask numa thread separada
+    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port), daemon=True).start()
     run_bot()
