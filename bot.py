@@ -13,7 +13,6 @@ from flask import Flask
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', handlers=[logging.StreamHandler(sys.stdout)])
 
 def force_log(msg):
-    """Imprime mensagens diretamente no painel de Logs do Render."""
     timestamp = datetime.now().strftime('%H:%M:%S')
     print(f"[{timestamp}] [SISTEMA] {msg}")
     sys.stdout.flush()
@@ -35,10 +34,16 @@ def carregar_dados():
         if os.path.exists('frases.json'):
             with open('frases.json', 'r', encoding='utf-8') as f:
                 dados = json.load(f)
-                force_log(f"✅ JSON OK: {len(dados.get('prendas',[]))} prendas e {len(dados.get('historia_theog',[]))} linhas de história.")
+                force_log(f"✅ JSON OK: {len(dados.get('prendas',[]))} prendas.")
         else:
             force_log("⚠️ frases.json não encontrado! Usando base de emergência.")
-            dados = {"admins": ["Emergency112"], "stalker_config": {"alvos_ativos": {}}, "prendas": ["oferece um café"], "historia_theog": ["Sem história no JSON."]}
+            dados = {
+                "admins": ["Emergency112"], 
+                "stalker_config": {"alvos_ativos": {}}, 
+                "prendas": ["oferece um café a {u}"], 
+                "lapadas": ["dá uma lapada em {u}"], 
+                "historia_theog": ["Sem história no JSON."]
+            }
     except Exception as e:
         force_log(f"🔥 Erro ao ler JSON: {e}")
 
@@ -59,20 +64,44 @@ def get_uptime():
 
 def send_raw(sock, msg):
     try:
-        if sock: sock.send(f"{msg}\r\n".encode('utf-8'))
+        if sock:
+            sock.send(f"{msg}\r\n".encode('utf-8'))
     except: pass
 
 # --- LÓGICA DE COMANDOS IRC ---
-def handle_irc_msg(user, message, is_private, irc):
+def handle_irc_msg(user, message, target_channel, irc):
     global dados
-    msg_low = message.lower().strip()
-    partes = msg_low.split()
+    msg_strip = message.strip()
+    partes = msg_strip.split()
     if not partes: return
-    cmd = partes[0]
-    target = user if is_private else CHANNEL
+    
+    cmd = partes[0].lower()
+    # Se o target_channel for o nick do bot, é uma Private Message (PV)
+    is_private = (target_channel.lower() == NICK.lower())
+    # Onde responder: se for PV, responde ao user. Se for canal, responde ao canal.
+    reply_to = user if is_private else CHANNEL
 
-    # STALKER PRO
-    if cmd == "!stalkerpro":
+    # --- COMANDOS ---
+    if cmd == "!uptime":
+        send_raw(irc, f"PRIVMSG {reply_to} :🚀 Uptime: {get_uptime()}")
+
+    elif cmd == "!historia":
+        linhas = dados.get("historia_theog", ["História não configurada."])
+        for linha in linhas:
+            send_raw(irc, f"PRIVMSG {reply_to} :{linha}")
+            time.sleep(0.8)
+
+    elif cmd == "!prenda":
+        alvo = partes[1] if len(partes) > 1 else user
+        f = random.choice(dados.get("prendas", ["oferece um café a {u}"]))
+        send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION {f.replace('{u}', alvo)}\x01")
+
+    elif cmd == "!lapada":
+        alvo = partes[1] if len(partes) > 1 else user
+        f = random.choice(dados.get("lapadas", ["dá uma lapada em {u}"]))
+        send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION {f.replace('{u}', alvo)}\x01")
+
+    elif cmd == "!stalkerpro":
         if user not in dados.get("admins", []): return
         if len(partes) < 2: return
         acao = partes[1]
@@ -89,28 +118,8 @@ def handle_irc_msg(user, message, is_private, irc):
                 if alvo in dados.get("stalker_config", {}).get("alvos_ativos", {}):
                     del dados["stalker_config"]["alvos_ativos"][alvo]
                     send_raw(irc, f"WATCH -{alvo}")
+                    send_raw(irc, f"PRIVMSG {user} :❌ {alvo} removido.")
             salvar_dados()
-
-    # COMANDO HISTÓRIA (VEM DO JSON)
-    elif cmd == "!historia":
-        linhas = dados.get("historia_theog", ["História não configurada no JSON."])
-        for linha in linhas:
-            send_raw(irc, f"PRIVMSG {target} :{linha}")
-            time.sleep(0.8) # Pausa para evitar kick por flood
-
-    # PRENDAS E LAPADAS (CENTENAS DE FRASES DO JSON)
-    elif cmd == "!prenda":
-        alvo = partes[1] if len(partes) > 1 else user
-        f = random.choice(dados.get("prendas", ["oferece um café a {u}"]))
-        send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION {f.format(u=alvo)}\x01")
-
-    elif cmd == "!lapada":
-        alvo = partes[1] if len(partes) > 1 else user
-        f = random.choice(dados.get("lapadas", ["dá uma lapada em {u}"]))
-        send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION {f.format(u=alvo)}\x01")
-
-    elif cmd == "!uptime":
-        send_raw(irc, f"PRIVMSG {target} :🚀 Uptime: {get_uptime()}")
 
 # --- LOOP PRINCIPAL ---
 def run_bot():
@@ -118,47 +127,63 @@ def run_bot():
         try:
             force_log(f"🛰️ Conectando a {SERVER}...")
             irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            irc.settimeout(240)
             irc.connect((SERVER, PORT))
             
             send_raw(irc, f"PASS {PASS}")
             send_raw(irc, f"NICK {NICK}")
             send_raw(irc, f"USER {NICK} 8 * :TheOG Bot")
             
+            buffer = ""
             while True:
                 data = irc.recv(4096).decode("utf-8", errors="ignore")
                 if not data: break
-                for line in data.split("\r\n"):
+                
+                buffer += data
+                while "\r\n" in buffer:
+                    line, buffer = buffer.split("\r\n", 1)
                     if not line: continue
-                    if line.startswith("PING"): send_raw(irc, f"PONG {line.split()[1]}")
                     
-                    if " 353 " in line:
-                        force_log(f"👥 UTILIZADORES NO CANAL: {line.split(' :')[-1]}")
-                    
-                    if " PRIVMSG " in line:
-                        u = line.split('!')[0][1:]
-                        t = line.split(' PRIVMSG ')[1].split(' :', 1)[1]
-                        d = line.split(' PRIVMSG ')[1].split(' :')[0]
-                        force_log(f"CHAT: <{u}> {t}")
-                        handle_irc_msg(u, t, d == NICK, irc)
-                    
+                    # 1. PING/PONG
+                    if line.startswith("PING"):
+                        send_raw(irc, f"PONG {line.split()[1]}")
+                        continue
+
+                    # 2. LOGIN / JOIN
                     if " 376 " in line or " 422 " in line:
                         send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         time.sleep(2)
                         send_raw(irc, f"JOIN {CHANNEL}")
                         for a in dados.get("stalker_config", {}).get("alvos_ativos", {}):
                             send_raw(irc, f"WATCH +{a}")
-                        force_log(f"🚩 O bot entrou em {CHANNEL}")
-                        send_raw(irc, f"NAMES {CHANNEL}")
+                        force_log(f"🚩 Online em {CHANNEL}")
+
+                    # 3. MENSAGENS (Onde estava o erro)
+                    if " PRIVMSG " in line:
+                        # Exemplo: :Nick!User@Host PRIVMSG #Canal :Mensagem
+                        try:
+                            # Extrai o Nick (tudo entre o primeiro ':' e o primeiro '!')
+                            sender_nick = line.split('!')[0][1:]
+                            
+                            # Extrai o Destino e a Mensagem
+                            # partes_msg[0] terá "#Canal" ou "TheOG"
+                            # partes_msg[1] terá o texto da mensagem
+                            partes_msg = line.split(' PRIVMSG ', 1)[1].split(' :', 1)
+                            target = partes_msg[0].strip()
+                            texto = partes_msg[1]
+                            
+                            force_log(f"[{target}] <{sender_nick}> {texto}")
+                            handle_irc_msg(sender_nick, texto, target, irc)
+                        except Exception as e:
+                            force_log(f"⚠️ Erro ao processar linha: {e}")
 
         except Exception as e:
-            force_log(f"💥 Erro: {e}")
-            time.sleep(30)
+            force_log(f"💥 Erro Geral: {e}")
+            time.sleep(20)
 
 # --- SERVIDOR WEB ---
 app = Flask(__name__)
 @app.route('/')
-def home(): return "TheOG Bot Online. Verifique os Logs no Render."
+def home(): return "TheOG Bot Online."
 
 if __name__ == "__main__":
     p = int(os.environ.get("PORT", 5000))
