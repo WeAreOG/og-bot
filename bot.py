@@ -35,15 +35,15 @@ def carregar_dados():
         if os.path.exists('frases.json'):
             with open('frases.json', 'r', encoding='utf-8') as f:
                 dados = json.load(f)
-                force_log(f"✅ JSON CARREGADO: {len(dados.get('admins', []))} admins encontrados.")
+                force_log(f"✅ JSON CARREGADO: {len(dados.get('admins', []))} admins.")
         else:
-            force_log("⚠️ frases.json NÃO ENCONTRADO! Criando estrutura básica...")
+            force_log("⚠️ frases.json NÃO ENCONTRADO! Criando padrão...")
             dados = {
                 "admins": ["Emergency112"], 
                 "stalker_config": {"alvos_ativos": {}}, 
                 "prendas": ["oferece um café a {u}"], 
                 "lapadas": ["dá uma lapada em {u}"], 
-                "historia_theog": ["História padrão do bot."]
+                "historia_theog": ["História do TheOG no JSON."]
             }
             salvar_dados()
     except Exception as e:
@@ -53,8 +53,7 @@ def salvar_dados():
     try:
         with open('frases.json', 'w', encoding='utf-8') as f:
             json.dump(dados, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        force_log(f"🔥 Erro ao salvar JSON: {e}")
+    except: pass
 
 carregar_dados()
 
@@ -82,78 +81,75 @@ def handle_irc_msg(user, message, target, irc):
     if not partes: return
     
     cmd = partes[0].lower()
-    is_private = (target.lower() == NICK.lower())
-    reply_to = user if is_private else CHANNEL
     
-    # Verifica se o utilizador é ADMIN (pelo JSON)
+    # Determina se a mensagem veio de um canal ou PV
+    # Se o target começar com #, é um canal. Caso contrário, é PV.
+    is_channel = target.startswith("#")
+    
+    # ADMIN Check do JSON
     lista_admins = dados.get("admins", [])
     is_admin = user in lista_admins
 
-    # --- COMANDO !COMANDOS (DINÂMICO) ---
+    # --- 1. COMANDO !COMANDOS (SEMPRE EM PV) ---
     if cmd == "!comandos":
-        # Comandos para todos
         base_cmds = "!comandos, !uptime, !historia, !prenda <nick>, !lapada <nick>"
-        # Adiciona stalker apenas se for Admin no JSON
         if is_admin:
-            msg_final = f"🛠️ [ADMIN] Comandos: {base_cmds}, !stalkerpro <+ / - / list> <nick>"
+            msg_pvt = f"🛠️ [ADMIN MODE] Comandos: {base_cmds}, !stalkerpro <+ / - / list> <nick>"
         else:
-            msg_final = f"🛠️ Comandos: {base_cmds}"
+            msg_pvt = f"🛠️ Comandos: {base_cmds}"
         
-        send_raw(irc, f"PRIVMSG {reply_to} :{msg_final}")
+        # Envia sempre para o 'user' (PV), ignorando o 'target'
+        send_raw(irc, f"PRIVMSG {user} :{msg_pvt}")
+        force_log(f"📩 Lista de comandos enviada em PV para {user}")
 
-    elif cmd == "!uptime":
-        send_raw(irc, f"PRIVMSG {reply_to} :🚀 Uptime: {get_uptime()}")
+    # --- 2. OUTROS COMANDOS (RESPONDEM NO CANAL OU PV) ---
+    else:
+        # Se for no canal, responde no canal. Se for PV, responde ao user.
+        reply_to = target if is_channel else user
 
-    elif cmd == "!historia":
-        # Puxa as linhas diretamente do JSON
-        linhas = dados.get("historia_theog", ["História não configurada no JSON."])
-        for linha in linhas:
-            send_raw(irc, f"PRIVMSG {reply_to} :{linha}")
-            time.sleep(1)
+        if cmd == "!uptime":
+            send_raw(irc, f"PRIVMSG {reply_to} :🚀 Uptime: {get_uptime()}")
 
-    elif cmd == "!prenda":
-        alvo = partes[1] if len(partes) > 1 else user
-        # Puxa frases do JSON
-        frases_prenda = dados.get("prendas", ["oferece um café a {u}"])
-        f = random.choice(frases_prenda)
-        send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION {f.replace('{u}', alvo)}\x01")
+        elif cmd == "!historia":
+            linhas = dados.get("historia_theog", ["Sem história."])
+            for linha in linhas:
+                send_raw(irc, f"PRIVMSG {reply_to} :{linha}")
+                time.sleep(0.8)
 
-    elif cmd == "!lapada":
-        alvo = partes[1] if len(partes) > 1 else user
-        # Puxa frases do JSON
-        frases_lapada = dados.get("lapadas", ["dá uma lapada em {u}"])
-        f = random.choice(frases_lapada)
-        send_raw(irc, f"PRIVMSG {CHANNEL} :\x01ACTION {f.replace('{u}', alvo)}\x01")
+        elif cmd == "!prenda":
+            alvo = partes[1] if len(partes) > 1 else user
+            frases = dados.get("prendas", ["oferece um café a {u}"])
+            f = random.choice(frases)
+            send_raw(irc, f"PRIVMSG {reply_to} :\x01ACTION {f.replace('{u}', alvo)}\x01")
 
-    # --- COMANDO STALKER (RESTRITO PELO JSON) ---
-    elif cmd == "!stalkerpro":
-        if not is_admin:
-            send_raw(irc, f"PRIVMSG {reply_to} :❌ Erro: Comando restrito a Administradores.")
-            return
+        elif cmd == "!lapada":
+            alvo = partes[1] if len(partes) > 1 else user
+            frases = dados.get("lapadas", ["dá uma lapada em {u}"])
+            f = random.choice(frases)
+            send_raw(irc, f"PRIVMSG {reply_to} :\x01ACTION {f.replace('{u}', alvo)}\x01")
+
+        elif cmd == "!stalkerpro":
+            if not is_admin:
+                send_raw(irc, f"PRIVMSG {user} :❌ Acesso negado.")
+                return
             
-        if len(partes) < 2: return
-        acao = partes[1]
-        
-        if acao == "list":
-            vigia = dados.get("stalker_config", {}).get("alvos_ativos", {})
-            if not vigia:
-                send_raw(irc, f"PRIVMSG {user} :🕵️ Nenhum alvo em vigilância.")
-            else:
-                for a, adm in vigia.items(): 
-                    send_raw(irc, f"PRIVMSG {user} :🕵️ Alvo: {a} (Vigiado por: {adm})")
-        
-        elif len(partes) > 2:
-            alvo = partes[2].lower()
-            if acao == "+":
-                dados.setdefault("stalker_config", {}).setdefault("alvos_ativos", {})[alvo] = user
-                send_raw(irc, f"WATCH +{alvo}")
-                send_raw(irc, f"PRIVMSG {user} :🎯 {alvo} adicionado à lista de vigilância.")
-            elif acao == "-":
-                if alvo in dados.get("stalker_config", {}).get("alvos_ativos", {}):
-                    del dados["stalker_config"]["alvos_ativos"][alvo]
-                    send_raw(irc, f"WATCH -{alvo}")
-                    send_raw(irc, f"PRIVMSG {user} :❌ {alvo} removido.")
-            salvar_dados()
+            if len(partes) < 2: return
+            acao = partes[1]
+            if acao == "list":
+                vigia = dados.get("stalker_config", {}).get("alvos_ativos", {})
+                send_raw(irc, f"PRIVMSG {user} :🕵️ Alvos ativos: {list(vigia.keys())}")
+            elif len(partes) > 2:
+                alvo = partes[2].lower()
+                if acao == "+":
+                    dados.setdefault("stalker_config", {}).setdefault("alvos_ativos", {})[alvo] = user
+                    send_raw(irc, f"WATCH +{alvo}")
+                    send_raw(irc, f"PRIVMSG {user} :🎯 {alvo} vigiado.")
+                elif acao == "-":
+                    if alvo in dados.get("stalker_config", {}).get("alvos_ativos", {}):
+                        del dados["stalker_config"]["alvos_ativos"][alvo]
+                        send_raw(irc, f"WATCH -{alvo}")
+                        send_raw(irc, f"PRIVMSG {user} :❌ Removido.")
+                salvar_dados()
 
 # --- LOOP PRINCIPAL ---
 def run_bot():
@@ -187,18 +183,18 @@ def run_bot():
                         send_raw(irc, f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         time.sleep(2)
                         send_raw(irc, f"JOIN {CHANNEL}")
-                        # Reativa o WATCH para os alvos guardados no JSON
-                        for a in dados.get("stalker_config", {}).get("alvos_ativos", {}):
-                            send_raw(irc, f"WATCH +{a}")
                         force_log(f"🚩 Online em {CHANNEL}")
 
+                    # PARSING DE MENSAGENS MELHORADO
                     if " PRIVMSG " in line:
                         m = re.match(r'^:([^! ]+)!.* PRIVMSG ([^ ]+) :(.*)$', line)
                         if m:
                             u_nick = m.group(1)
-                            u_dest = m.group(2)
+                            u_target = m.group(2)
                             u_msg = m.group(3)
-                            handle_irc_msg(u_nick, u_msg, u_dest, irc)
+                            # Se o bot vir a mensagem, ele vai logar isto:
+                            force_log(f"CMD_IN: From:{u_nick} To:{u_target} Msg:{u_msg}")
+                            handle_irc_msg(u_nick, u_msg, u_target, irc)
 
         except Exception as e:
             force_log(f"💥 Erro: {e}")
@@ -207,7 +203,7 @@ def run_bot():
 # --- SERVIDOR WEB ---
 app = Flask(__name__)
 @app.route('/')
-def home(): return "TheOG Bot Online com integração JSON."
+def home(): return "TheOG Bot Online."
 
 if __name__ == "__main__":
     p = int(os.environ.get("PORT", 5000))
