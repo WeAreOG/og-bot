@@ -21,7 +21,7 @@ def force_log(msg):
 # --- CONFIGURAÇÃO IRC ---
 SERVER = "irc.ptnet.org"
 PORT = 6667
-NICK = "TheOG"  # Nick fixo e obrigatório
+NICK = "TheOG"  
 PASS = "Nasomet112#"
 CHANNEL = "#TheOG"
 
@@ -52,22 +52,23 @@ def send_raw(msg):
     except:
         pass
 
-# --- TAREFAS AUTOMÁTICAS (20 MIN) ---
+# --- TAREFAS AUTOMÁTICAS (TIMERS AJUSTADOS) ---
 def tarefas_periodicas():
     while True:
-        time.sleep(1200)
-        if not dados or not irc_sock: continue
+        # Espera 2 horas (7200 segundos) para o Reforço Positivo
+        time.sleep(7200) 
+        if dados and irc_sock:
+            reforcos = dados.get("reforco_positivo", [])
+            if reforcos:
+                send_raw(f"PRIVMSG {CHANNEL} :{random.choice(reforcos)}")
         
-        # Reforço Positivo
-        reforcos = dados.get("reforco_positivo", [])
-        if reforcos:
-            send_raw(f"PRIVMSG {CHANNEL} :{random.choice(reforcos)}")
-        
-        # Puxar Conversa
-        now = time.time()
-        puxar = dados.get("puxar_conversa", [])
-        if puxar and ultima_atividade:
-            inativos = [n for n, t in ultima_atividade.items() if (now - t) > 1200 and n != NICK]
+        # Espera mais 1 hora e meia (5400 segundos) para Puxar Conversa
+        time.sleep(5400)
+        if dados and irc_sock and ultima_atividade:
+            now = time.time()
+            puxar = dados.get("puxar_conversa", [])
+            # Só puxa conversa se o user estiver inativo há mais de 1h30
+            inativos = [n for n, t in ultima_atividade.items() if (now - t) > 5400 and n != NICK]
             if inativos:
                 alvo = random.choice(inativos)
                 send_raw(f"PRIVMSG {CHANNEL} :{random.choice(puxar).replace('{u}', alvo)}")
@@ -80,16 +81,17 @@ def handle_irc_event(line):
         send_raw(f"PONG {line.split()[1]}")
         return
 
-    # Boas-vindas a quem entra (JOIN)
+    # Boas-vindas (Probabilidade de 30% para não ser chato)
     if " JOIN " in line:
         m = re.match(r'^:([^! ]+)!.* JOIN :?#.*', line)
         if m:
             user_join = m.group(1)
             if user_join != NICK:
-                saudacoes = dados.get("saudacoes", [])
-                if saudacoes:
-                    send_raw(f"PRIVMSG {CHANNEL} :{random.choice(saudacoes).replace('{u}', user_join)}")
                 ultima_atividade[user_join] = time.time()
+                if random.random() < 0.30: # 30% de chance de saudar
+                    saudacoes = dados.get("saudacoes", [])
+                    if saudacoes:
+                        send_raw(f"PRIVMSG {CHANNEL} :{random.choice(saudacoes).replace('{u}', user_join)}")
 
     # Comandos e Interações
     if " PRIVMSG " in line:
@@ -105,9 +107,9 @@ def handle_irc_event(line):
         ultima_atividade[user] = time.time()
         cmd = partes[0].lower()
         is_channel = target.startswith("#")
-        is_admin = user in dados.get("admins", [])
         reply_to = target if is_channel else user
 
+        # --- COMANDOS (Sempre ativos) ---
         if cmd == "!comandos":
             send_raw(f"PRIVMSG {user} :🛠️ !uptime, !historia, !prenda, !lapada, !radio")
             return
@@ -125,22 +127,23 @@ def handle_irc_event(line):
         elif cmd == "!historia":
             for linha in dados.get("historia_theog", []):
                 send_raw(f"PRIVMSG {reply_to} :{linha}")
-                time.sleep(0.8)
 
         elif cmd == "!prenda":
             alvo = partes[1] if len(partes) > 1 else user
-            frase = random.choice(dados.get("prendas", ["prenda para {u}"]))
+            frase = random.choice(dados.get("prendas", ["oferece uma prenda a {u}"]))
             send_raw(f"PRIVMSG {reply_to} :\x01ACTION {frase.replace('{u}', alvo)}\x01")
 
         elif cmd == "!lapada":
             alvo = partes[1] if len(partes) > 1 else user
-            frase = random.choice(dados.get("lapadas", ["lapada em {u}"]))
+            frase = random.choice(dados.get("lapadas", ["dá uma lapada em {u}"]))
             send_raw(f"PRIVMSG {reply_to} :\x01ACTION {frase.replace('{u}', alvo)}\x01")
 
+        # Menção ao Nick (Probabilidade de 40% para evitar chatice)
         elif NICK.lower() in msg_lower:
-            pool = dados.get("saudacoes", []) + dados.get("evasivas", [])
-            if pool:
-                send_raw(f"PRIVMSG {reply_to} :{random.choice(pool).replace('{u}', user)}")
+            if random.random() < 0.40:
+                pool = dados.get("saudacoes", []) + dados.get("evasivas", [])
+                if pool:
+                    send_raw(f"PRIVMSG {reply_to} :{random.choice(pool).replace('{u}', user)}")
 
 # --- LOOP DE LIGAÇÃO ---
 def run_bot():
@@ -166,28 +169,27 @@ def run_bot():
                 buffer += data
                 while "\r\n" in buffer:
                     line, buffer = buffer.split("\r\n", 1)
-                    force_log(f"RAW: {line}")
+                    # Comentado para poupar log no Render (podes descomentar se precisares de debug)
+                    # force_log(f"RAW: {line}")
 
-                    # Se o nick estiver em uso, o bot não muda, apenas espera e tenta de novo
                     if " 433 " in line:
                         force_log(f"⚠️ O nick {NICK} está ocupado. Tentando novamente...")
                         irc_sock.close()
                         time.sleep(30)
                         break
 
-                    # Sucesso no Registo
                     if " 376 " in line or " 422 " in line:
                         force_log(f"✅ Registado como {NICK}!")
                         send_raw(f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         time.sleep(2)
                         send_raw(f"JOIN {CHANNEL}")
-                        entrada = random.choice(dados.get("frases_entrada", ["TheOG está na área!"]))
-                        send_raw(f"PRIVMSG {CHANNEL} :{entrada}")
+                        # Mensagem de entrada discreta
+                        send_raw(f"PRIVMSG {CHANNEL} :[TheOG Online]")
 
                     handle_irc_event(line)
                 else:
                     continue
-                break # Sai do loop interno se houver erro de nick
+                break 
 
         except Exception as e:
             force_log(f"💥 Erro: {e}. Re-tentando em 15s...")
