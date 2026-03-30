@@ -38,7 +38,7 @@ def carregar_dados():
         if os.path.exists(JSON_FILE):
             with open(JSON_FILE, 'r', encoding='utf-8') as f:
                 dados = json.load(f)
-            force_log(f"✅ JSON carregado: {len(dados.get('saudacoes', []))} saudações.")
+            force_log(f"✅ JSON carregado.")
         else:
             force_log("❌ frases.json não encontrado!")
     except Exception as e:
@@ -52,22 +52,21 @@ def send_raw(msg):
     except:
         pass
 
-# --- TAREFAS AUTOMÁTICAS (TIMERS AJUSTADOS) ---
+# --- TAREFAS AUTOMÁTICAS (TIMERS LENTOS PARA NÃO SER CHATO) ---
 def tarefas_periodicas():
     while True:
-        # Espera 2 horas (7200 segundos) para o Reforço Positivo
+        # 2 Horas para reforço positivo
         time.sleep(7200) 
         if dados and irc_sock:
             reforcos = dados.get("reforco_positivo", [])
             if reforcos:
                 send_raw(f"PRIVMSG {CHANNEL} :{random.choice(reforcos)}")
         
-        # Espera mais 1 hora e meia (5400 segundos) para Puxar Conversa
+        # 1 Hora e meia para puxar conversa
         time.sleep(5400)
         if dados and irc_sock and ultima_atividade:
             now = time.time()
             puxar = dados.get("puxar_conversa", [])
-            # Só puxa conversa se o user estiver inativo há mais de 1h30
             inativos = [n for n, t in ultima_atividade.items() if (now - t) > 5400 and n != NICK]
             if inativos:
                 alvo = random.choice(inativos)
@@ -81,14 +80,14 @@ def handle_irc_event(line):
         send_raw(f"PONG {line.split()[1]}")
         return
 
-    # Boas-vindas (Probabilidade de 30% para não ser chato)
+    # Boas-vindas (Probabilidade de 30% para não saturar)
     if " JOIN " in line:
         m = re.match(r'^:([^! ]+)!.* JOIN :?#.*', line)
         if m:
             user_join = m.group(1)
             if user_join != NICK:
                 ultima_atividade[user_join] = time.time()
-                if random.random() < 0.30: # 30% de chance de saudar
+                if random.random() < 0.30: 
                     saudacoes = dados.get("saudacoes", [])
                     if saudacoes:
                         send_raw(f"PRIVMSG {CHANNEL} :{random.choice(saudacoes).replace('{u}', user_join)}")
@@ -109,7 +108,6 @@ def handle_irc_event(line):
         is_channel = target.startswith("#")
         reply_to = target if is_channel else user
 
-        # --- COMANDOS (Sempre ativos) ---
         if cmd == "!comandos":
             send_raw(f"PRIVMSG {user} :🛠️ !uptime, !historia, !prenda, !lapada, !radio")
             return
@@ -130,22 +128,22 @@ def handle_irc_event(line):
 
         elif cmd == "!prenda":
             alvo = partes[1] if len(partes) > 1 else user
-            frase = random.choice(dados.get("prendas", ["oferece uma prenda a {u}"]))
+            frase = random.choice(dados.get("prendas", ["prenda para {u}"]))
             send_raw(f"PRIVMSG {reply_to} :\x01ACTION {frase.replace('{u}', alvo)}\x01")
 
         elif cmd == "!lapada":
             alvo = partes[1] if len(partes) > 1 else user
-            frase = random.choice(dados.get("lapadas", ["dá uma lapada em {u}"]))
+            frase = random.choice(dados.get("lapadas", ["lapada em {u}"]))
             send_raw(f"PRIVMSG {reply_to} :\x01ACTION {frase.replace('{u}', alvo)}\x01")
 
-        # Menção ao Nick (Probabilidade de 40% para evitar chatice)
+        # Resposta ao nick (Probabilidade 40%)
         elif NICK.lower() in msg_lower:
             if random.random() < 0.40:
                 pool = dados.get("saudacoes", []) + dados.get("evasivas", [])
                 if pool:
                     send_raw(f"PRIVMSG {reply_to} :{random.choice(pool).replace('{u}', user)}")
 
-# --- LOOP DE LIGAÇÃO ---
+# --- LOOP DE LIGAÇÃO RÁPIDA ---
 def run_bot():
     global irc_sock
     carregar_dados()
@@ -153,9 +151,9 @@ def run_bot():
 
     while True:
         try:
-            force_log(f"🛰️ Tentando ligar como {NICK}...")
+            force_log(f"🛰️ Conectando...")
             irc_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            irc_sock.settimeout(300)
+            irc_sock.settimeout(240)
             irc_sock.connect((SERVER, PORT))
             
             send_raw(f"PASS {PASS}")
@@ -169,31 +167,27 @@ def run_bot():
                 buffer += data
                 while "\r\n" in buffer:
                     line, buffer = buffer.split("\r\n", 1)
-                    # Comentado para poupar log no Render (podes descomentar se precisares de debug)
-                    # force_log(f"RAW: {line}")
 
+                    # Nick em uso: Tenta recuperar o nick imediatamente
                     if " 433 " in line:
-                        force_log(f"⚠️ O nick {NICK} está ocupado. Tentando novamente...")
-                        irc_sock.close()
-                        time.sleep(30)
-                        break
-
-                    if " 376 " in line or " 422 " in line:
-                        force_log(f"✅ Registado como {NICK}!")
-                        send_raw(f"PRIVMSG NickServ :IDENTIFY {PASS}")
+                        force_log(f"⚠️ Nick ocupado. Recuperando...")
+                        send_raw(f"PRIVMSG NickServ :GHOST {NICK} {PASS}")
+                        send_raw(f"NICK {NICK}")
                         time.sleep(2)
+                        continue
+
+                    # Registro concluído
+                    if " 376 " in line or " 422 " in line:
+                        force_log(f"✅ Registado!")
+                        send_raw(f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         send_raw(f"JOIN {CHANNEL}")
-                        # Mensagem de entrada discreta
                         send_raw(f"PRIVMSG {CHANNEL} :[TheOG Online]")
 
                     handle_irc_event(line)
-                else:
-                    continue
-                break 
 
         except Exception as e:
-            force_log(f"💥 Erro: {e}. Re-tentando em 15s...")
-            time.sleep(15)
+            force_log(f"💥 Erro: {e}. Reiniciando em 5s...")
+            time.sleep(5)
 
 # --- FLASK ---
 app = Flask(__name__)
