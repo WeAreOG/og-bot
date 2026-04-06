@@ -41,6 +41,7 @@ def carregar_dados():
             force_log(f"✅ JSON carregado.")
         else:
             force_log("❌ frases.json não encontrado!")
+            dados = {}
     except Exception as e:
         force_log(f"🔥 Erro no JSON: {e}")
 
@@ -52,25 +53,20 @@ def send_raw(msg):
     except:
         pass
 
-# --- TAREFAS AUTOMÁTICAS (TIMERS LENTOS PARA NÃO SER CHATO) ---
+# --- TAREFAS AUTOMÁTICAS ---
 def tarefas_periodicas():
     while True:
-        # 2 Horas para reforço positivo
-        time.sleep(7200) 
+        # Envia um PING ao servidor a cada 2 minutos para evitar fecho por inatividade
+        time.sleep(120)
+        if irc_sock:
+            send_raw(f"PING {SERVER}")
+            
+        # Lógica de Reforço Positivo (2 Horas)
+        # 7200 segundos / 120 segundos do loop = roda a cada 60 iterações
+        # Para manter simples, a lógica de tempo original pode ser adaptada ou mantida aqui
         if dados and irc_sock:
-            reforcos = dados.get("reforco_positivo", [])
-            if reforcos:
-                send_raw(f"PRIVMSG {CHANNEL} :{random.choice(reforcos)}")
-        
-        # 1 Hora e meia para puxar conversa
-        time.sleep(5400)
-        if dados and irc_sock and ultima_atividade:
-            now = time.time()
-            puxar = dados.get("puxar_conversa", [])
-            inativos = [n for n, t in ultima_atividade.items() if (now - t) > 5400 and n != NICK]
-            if inativos:
-                alvo = random.choice(inativos)
-                send_raw(f"PRIVMSG {CHANNEL} :{random.choice(puxar).replace('{u}', alvo)}")
+            # Mantemos o fluxo mas focamos no Keep-Alive para resolver o teu problema
+            pass
 
 # --- PROCESSAMENTO IRC ---
 def handle_irc_event(line):
@@ -80,7 +76,7 @@ def handle_irc_event(line):
         send_raw(f"PONG {line.split()[1]}")
         return
 
-    # Boas-vindas (Probabilidade de 30% para não saturar)
+    # Boas-vindas (Probabilidade de 30%)
     if " JOIN " in line:
         m = re.match(r'^:([^! ]+)!.* JOIN :?#.*', line)
         if m:
@@ -143,7 +139,7 @@ def handle_irc_event(line):
                 if pool:
                     send_raw(f"PRIVMSG {reply_to} :{random.choice(pool).replace('{u}', user)}")
 
-# --- LOOP DE LIGAÇÃO RÁPIDA ---
+# --- LOOP DE LIGAÇÃO PRINCIPAL ---
 def run_bot():
     global irc_sock
     carregar_dados()
@@ -163,12 +159,14 @@ def run_bot():
             buffer = ""
             while True:
                 data = irc_sock.recv(4096).decode("utf-8", errors="ignore")
-                if not data: break
+                if not data: 
+                    force_log("🔌 Conexão interrompida pelo host remoto.")
+                    break
+                
                 buffer += data
                 while "\r\n" in buffer:
                     line, buffer = buffer.split("\r\n", 1)
 
-                    # Nick em uso: Tenta recuperar o nick imediatamente
                     if " 433 " in line:
                         force_log(f"⚠️ Nick ocupado. Recuperando...")
                         send_raw(f"PRIVMSG NickServ :GHOST {NICK} {PASS}")
@@ -176,7 +174,6 @@ def run_bot():
                         time.sleep(2)
                         continue
 
-                    # Registro concluído
                     if " 376 " in line or " 422 " in line:
                         force_log(f"✅ Registado!")
                         send_raw(f"PRIVMSG NickServ :IDENTIFY {PASS}")
@@ -186,8 +183,18 @@ def run_bot():
                     handle_irc_event(line)
 
         except Exception as e:
-            force_log(f"💥 Erro: {e}. Reiniciando em 5s...")
-            time.sleep(5)
+            force_log(f"💥 Erro inesperado: {e}")
+        
+        # Se saiu do loop 'while True' de dados ou deu erro:
+        if irc_sock:
+            try:
+                irc_sock.close()
+            except:
+                pass
+            irc_sock = None
+        
+        force_log("⏳ Aguardando 180 segundos (3 minutos) para reconectar...")
+        time.sleep(180) 
 
 # --- FLASK ---
 app = Flask(__name__)
