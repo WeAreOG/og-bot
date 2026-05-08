@@ -62,10 +62,7 @@ def tarefas_periodicas():
             send_raw(f"PING {SERVER}")
             
         # Lógica de Reforço Positivo (2 Horas)
-        # 7200 segundos / 120 segundos do loop = roda a cada 60 iterações
-        # Para manter simples, a lógica de tempo original pode ser adaptada ou mantida aqui
         if dados and irc_sock:
-            # Mantemos o fluxo mas focamos no Keep-Alive para resolver o teu problema
             pass
 
 # --- PROCESSAMENTO IRC ---
@@ -105,7 +102,7 @@ def handle_irc_event(line):
         reply_to = target if is_channel else user
 
         if cmd == "!comandos":
-            send_raw(f"PRIVMSG {user} :🛠️ !uptime, !historia, !prenda, !lapada, !radio")
+            send_raw(f"PRIVMSG {user} :🛠️ !uptime, !historia, !prenda, !lapada, !radio, !forum, !family")
             return
 
         if cmd == "!radio":
@@ -131,6 +128,14 @@ def handle_irc_event(line):
             alvo = partes[1] if len(partes) > 1 else user
             frase = random.choice(dados.get("lapadas", ["lapada em {u}"]))
             send_raw(f"PRIVMSG {reply_to} :\x01ACTION {frase.replace('{u}', alvo)}\x01")
+
+        elif cmd == "!forum":
+            send_raw(f"PRIVMSG {user} :🌐 Fórum do Grupo (Acede às discussões da nossa comunidade): https://weareog.forumeiros.com")
+            return
+
+        elif cmd == "!family":
+            send_raw(f"PRIVMSG {user} :🖼️ Stickers Family (Vê aqui a nossa coleção de stickers): https://drive.proton.me/urls/45Z42X27F0#XPfr61gxlrsQ")
+            return
 
         # Resposta ao nick (Probabilidade 40%)
         elif NICK.lower() in msg_lower:
@@ -185,7 +190,6 @@ def run_bot():
         except Exception as e:
             force_log(f"💥 Erro inesperado: {e}")
         
-        # Se saiu do loop 'while True' de dados ou deu erro:
         if irc_sock:
             try:
                 irc_sock.close()
