@@ -1,5 +1,5 @@
 import socket
-import ssl  # <--- Adicionado para suporte a conexão segura (SSL)
+import ssl  # Suporte a conexão segura (SSL)
 import time
 import threading
 import os
@@ -19,9 +19,9 @@ def force_log(msg):
     print(f"[{timestamp}] [SISTEMA] {msg}")
     sys.stdout.flush()
 
-# --- CONFIGURAÇÃO IRC (Atualizado para SSL Seguro) ---
-SERVER = "irc.ptnet.org"
-PORT = 6697  # <--- Porto SSL da PTNet
+# --- CONFIGURAÇÃO IRC (Alterado para servidor direto da Telepac para evitar filtros) ---
+SERVER = "telepac.ptnet.org"  # <--- Rota alternativa direta nacional
+PORT = 6697  
 NICK = "TheOG"  
 PASS = "Nasomet112#"
 CHANNEL = "#TheOG"
@@ -41,8 +41,15 @@ def carregar_dados():
                 dados = json.load(f)
             force_log(f"✅ JSON carregado.")
         else:
-            force_log("❌ frases.json não encontrado!")
-            dados = {}
+            force_log("❌ frases.json não encontrado! A usar dados base.")
+            dados = {
+                "saudacoes": ["Olá {u}!", "Bem-vindo {u}!"],
+                "evasivas": ["Estou ocupado agora, {u}.", "Diz, {u}?"],
+                "prendas": ["deu uma prenda a {u}"],
+                "lapadas": ["deu uma lapada em {u}"],
+                "radios_online": [{"nome": "Rádio Comercial", "url": "https://radiocomercial.iol.pt"}],
+                "historia_theog": ["Linha 1 da história dos OG", "Linha 2 da história dos OG"]
+            }
     except Exception as e:
         force_log(f"🔥 Erro no JSON: {e}")
 
@@ -59,18 +66,13 @@ def tarefas_periodicas():
     global irc_sock
     while True:
         try:
-            # Envia um PING ao servidor a cada 2 minutos para evitar fecho por inatividade
             time.sleep(120)
             if irc_sock:
                 send_raw(f"PING {SERVER}")
-                
-            # Lógica de Reforço Positivo (2 Horas)
-            if dados and irc_sock:
-                pass
         except:
             pass
 
-# --- PROCESSAMENTO IRC (Teus comandos originais mantidos a 100%) ---
+# --- PROCESSAMENTO IRC ---
 def handle_irc_event(line):
     global dados, ultima_atividade
     
@@ -78,7 +80,6 @@ def handle_irc_event(line):
         send_raw(f"PONG {line.split()[1]}")
         return
 
-    # Boas-vindas (Probabilidade de 30%)
     if " JOIN " in line:
         m = re.match(r'^:([^! ]+)!.* JOIN :?#.*', line)
         if m:
@@ -90,7 +91,6 @@ def handle_irc_event(line):
                     if saudacoes:
                         send_raw(f"PRIVMSG {CHANNEL} :{random.choice(saudacoes).replace('{u}', user_join)}")
 
-    # Comandos e Interações
     if " PRIVMSG " in line:
         m = re.match(r'^:([^! ]+)!.* PRIVMSG ([^ ]+) :(.*)$', line)
         if not m: return
@@ -135,21 +135,20 @@ def handle_irc_event(line):
             send_raw(f"PRIVMSG {reply_to} :\x01ACTION {frase.replace('{u}', alvo)}\x01")
 
         elif cmd == "!forum":
-            send_raw(f"PRIVMSG {user} :🌐 Fórum do Grupo (Acede às discussões da nossa comunidade): https://weareog.forumeiros.com")
+            send_raw(f"PRIVMSG {user} :🌐 Fórum do Grupo: https://weareog.forumeiros.com")
             return
 
         elif cmd == "!family":
-            send_raw(f"PRIVMSG {user} :🖼️ Stickers Family (Vê aqui a nossa coleção de stickers): https://drive.proton.me/urls/45Z42X27F0#XPfr61gxlrsQ")
+            send_raw(f"PRIVMSG {user} :🖼️ Stickers Family: https://drive.proton.me/urls/45Z42X27F0#XPfr61gxlrsQ")
             return
 
-        # Resposta ao nick (Probabilidade 40%)
         elif NICK.lower() in msg_lower:
             if random.random() < 0.40:
                 pool = dados.get("saudacoes", []) + dados.get("evasivas", [])
                 if pool:
                     send_raw(f"PRIVMSG {reply_to} :{random.choice(pool).replace('{u}', user)}")
 
-# --- LOOP DE LIGAÇÃO PRINCIPAL (Com Suporte SSL) ---
+# --- LOOP DE LIGAÇÃO PRINCIPAL ---
 def run_bot():
     global irc_sock
     carregar_dados()
@@ -158,20 +157,16 @@ def run_bot():
         try:
             force_log(f"🛰️ Conectando via SSL a {SERVER}:{PORT}...")
             
-            # 1. Criação do socket TCP base
+            # Força o socket a usar especificamente IPv4 (AF_INET) para evitar bloqueios de redes virtuais IPv6
             base_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            base_sock.settimeout(30) # Reduzido o timeout de handshake para falhar e rodar de server mais rápido se travar
+            base_sock.settimeout(30)
             
-            # 2. Configuração do contexto SSL seguro
             context = ssl.create_default_context()
             context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE  # Ignora avisos de certificados auto-assinados comuns em IRC
+            context.verify_mode = ssl.CERT_NONE
             
-            # 3. Transforma o socket normal num socket SSL com suporte SNI explícito
             irc_sock = context.wrap_socket(base_sock, server_hostname=SERVER)
             irc_sock.connect((SERVER, PORT))
-            
-            # Ajustar timeout de leitura após conectar com sucesso
             irc_sock.settimeout(240)
             
             send_raw(f"PASS {PASS}")
@@ -200,19 +195,16 @@ def run_bot():
                         force_log(f"✅ Registado!")
                         send_raw(f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         send_raw(f"JOIN {CHANNEL}")
-                        send_raw(f"PRIVMSG {CHANNEL} :[TheOG Online]")
+                        send_raw(f"PRIVMSG {CHANNEL} :[TheOG Online via Rota Segura]")
 
                     handle_irc_event(line)
 
         except Exception as e:
             force_log(f"💥 Erro de conexão: {e}")
         
-        # Limpeza segura do socket antigo antes de nova tentativa
         if irc_sock:
-            try:
-                irc_sock.close()
-            except:
-                pass
+            try: irc_sock.close()
+            except: pass
             irc_sock = None
         
         force_log("⏳ Aguardando 20 segundos para reconectar...")
@@ -221,11 +213,11 @@ def run_bot():
 # --- FLASK ---
 app = Flask(__name__)
 @app.route('/')
-def home(): return "TheOG Bot Online", 200
+def home(): 
+    return "TheOG Bot Ativo", 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    # Inicialização correta e isolada das threads no arranque da aplicação
     threading.Thread(target=tarefas_periodicas, daemon=True).start()
     threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port), daemon=True).start()
     run_bot()
