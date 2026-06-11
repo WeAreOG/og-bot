@@ -19,8 +19,8 @@ def force_log(msg):
     print(f"[{timestamp}] [SISTEMA] {msg}")
     sys.stdout.flush()
 
-# --- CONFIGURAÇÃO IRC (Alterado para servidor direto da Telepac para evitar filtros) ---
-SERVER = "telepac.ptnet.org"  # <--- Rota alternativa direta nacional
+# --- CONFIGURAÇÃO IRC (Lista de servidores ativos para evitar erros de DNS) ---
+SERVIDORES_POOL = ["luna.ptnet.org", "irc.ptnet.org"]
 PORT = 6697  
 NICK = "TheOG"  
 PASS = "Nasomet112#"
@@ -68,7 +68,8 @@ def tarefas_periodicas():
         try:
             time.sleep(120)
             if irc_sock:
-                send_raw(f"PING {SERVER}")
+                # Envia o PING usando um formato genérico para evitar dependência de variável estática
+                irc_sock.send(f"PING :ping\r\n".encode('utf-8'))
         except:
             pass
 
@@ -152,21 +153,24 @@ def handle_irc_event(line):
 def run_bot():
     global irc_sock
     carregar_dados()
+    
+    servidor_atual_index = 0
 
     while True:
+        # Seleciona o servidor atual da lista para tentar a ligação
+        server_alvo = SERVIDORES_POOL[servidor_atual_index]
         try:
-            force_log(f"🛰️ Conectando via SSL a {SERVER}:{PORT}...")
+            force_log(f"🛰️ Conectando via SSL a {server_alvo}:{PORT}...")
             
-            # Força o socket a usar especificamente IPv4 (AF_INET) para evitar bloqueios de redes virtuais IPv6
             base_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            base_sock.settimeout(30)
+            base_sock.settimeout(20)
             
             context = ssl.create_default_context()
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
             
-            irc_sock = context.wrap_socket(base_sock, server_hostname=SERVER)
-            irc_sock.connect((SERVER, PORT))
+            irc_sock = context.wrap_socket(base_sock, server_hostname=server_alvo)
+            irc_sock.connect((server_alvo, PORT))
             irc_sock.settimeout(240)
             
             send_raw(f"PASS {PASS}")
@@ -195,20 +199,22 @@ def run_bot():
                         force_log(f"✅ Registado!")
                         send_raw(f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         send_raw(f"JOIN {CHANNEL}")
-                        send_raw(f"PRIVMSG {CHANNEL} :[TheOG Online via Rota Segura]")
+                        send_raw(f"PRIVMSG {CHANNEL} :[TheOG Online]")
 
                     handle_irc_event(line)
 
         except Exception as e:
-            force_log(f"💥 Erro de conexão: {e}")
+            force_log(f"💥 Erro de conexão com {server_alvo}: {e}")
+            # Se falhar, roda para o próximo servidor da lista no próximo loop
+            servidor_atual_index = (servidor_atual_index + 1) % len(SERVIDORES_POOL)
         
         if irc_sock:
             try: irc_sock.close()
             except: pass
             irc_sock = None
         
-        force_log("⏳ Aguardando 20 segundos para reconectar...")
-        time.sleep(20) 
+        force_log("⏳ Aguardando 15 segundos para tentar nova rota...")
+        time.sleep(15) 
 
 # --- FLASK ---
 app = Flask(__name__)
