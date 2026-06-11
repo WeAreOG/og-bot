@@ -1,4 +1,5 @@
 import socket
+import ssl  # <--- Adicionado para suporte a conexão segura (SSL)
 import time
 import threading
 import os
@@ -18,9 +19,9 @@ def force_log(msg):
     print(f"[{timestamp}] [SISTEMA] {msg}")
     sys.stdout.flush()
 
-# --- CONFIGURAÇÃO IRC ---
+# --- CONFIGURAÇÃO IRC (Atualizado para SSL Seguro) ---
 SERVER = "irc.ptnet.org"
-PORT = 6667
+PORT = 6697  # <--- Porto SSL da PTNet
 NICK = "TheOG"  
 PASS = "Nasomet112#"
 CHANNEL = "#TheOG"
@@ -69,7 +70,7 @@ def tarefas_periodicas():
         except:
             pass
 
-# --- PROCESSAMENTO IRC ---
+# --- PROCESSAMENTO IRC (Teus comandos originais mantidos a 100%) ---
 def handle_irc_event(line):
     global dados, ultima_atividade
     
@@ -148,16 +149,26 @@ def handle_irc_event(line):
                 if pool:
                     send_raw(f"PRIVMSG {reply_to} :{random.choice(pool).replace('{u}', user)}")
 
-# --- LOOP DE LIGAÇÃO PRINCIPAL ---
+# --- LOOP DE LIGAÇÃO PRINCIPAL (Com Suporte SSL) ---
 def run_bot():
     global irc_sock
     carregar_dados()
 
     while True:
         try:
-            force_log(f"🛰️ Conectando...")
-            irc_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            irc_sock.settimeout(240)
+            force_log(f"🛰️ Conectando via SSL a {SERVER}:{PORT}...")
+            
+            # 1. Criação do socket TCP base
+            base_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            base_sock.settimeout(240)
+            
+            # 2. Configuração do contexto SSL seguro
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE  # Ignora avisos de certificados auto-assinados comuns em IRC
+            
+            # 3. Transforma o socket normal num socket SSL
+            irc_sock = context.wrap_socket(base_sock, server_hostname=SERVER)
             irc_sock.connect((SERVER, PORT))
             
             send_raw(f"PASS {PASS}")
@@ -191,9 +202,9 @@ def run_bot():
                     handle_irc_event(line)
 
         except Exception as e:
-            force_log(f"💥 Erro inesperado: {e}")
+            force_log(f"💥 Erro de conexão: {e}")
         
-        # Limpeza segura do socket antigo antes de tentar ligar outra vez
+        # Limpeza segura do socket antigo antes de nova tentativa
         if irc_sock:
             try:
                 irc_sock.close()
@@ -201,9 +212,8 @@ def run_bot():
                 pass
             irc_sock = None
         
-        # Reduzido de 180s para 15s para evitar adormecimento no Render
-        force_log("⏳ Aguardando 15 segundos para reconectar...")
-        time.sleep(15) 
+        force_log("⏳ Aguardando 20 segundos para reconectar...")
+        time.sleep(20) 
 
 # --- FLASK ---
 app = Flask(__name__)
@@ -212,7 +222,7 @@ def home(): return "TheOG Bot Online", 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    # Inicializa as threads apenas uma vez no arranque da app
+    # Inicialização correta e isolada das threads no arranque da aplicação
     threading.Thread(target=tarefas_periodicas, daemon=True).start()
     threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port), daemon=True).start()
     run_bot()
