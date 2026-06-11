@@ -160,16 +160,19 @@ def run_bot():
             
             # 1. Criação do socket TCP base
             base_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            base_sock.settimeout(240)
+            base_sock.settimeout(30) # Reduzido o timeout de handshake para falhar e rodar de server mais rápido se travar
             
             # 2. Configuração do contexto SSL seguro
             context = ssl.create_default_context()
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE  # Ignora avisos de certificados auto-assinados comuns em IRC
             
-            # 3. Transforma o socket normal num socket SSL
+            # 3. Transforma o socket normal num socket SSL com suporte SNI explícito
             irc_sock = context.wrap_socket(base_sock, server_hostname=SERVER)
             irc_sock.connect((SERVER, PORT))
+            
+            # Ajustar timeout de leitura após conectar com sucesso
+            irc_sock.settimeout(240)
             
             send_raw(f"PASS {PASS}")
             send_raw(f"NICK {NICK}")
