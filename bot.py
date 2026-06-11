@@ -19,9 +19,14 @@ def force_log(msg):
     print(f"[{timestamp}] [SISTEMA] {msg}")
     sys.stdout.flush()
 
-# --- CONFIGURAÇÃO IRC (Pool de servidores oficiais da PTNet) ---
-SERVIDORES_POOL = ["irc.ptnet.org", "luna.ptnet.org"]
-PORT = 6697  
+# --- POOL DE IPS REAIS E OFICIAIS DA PTNET ---
+POOL_CONEXOES = [
+    ("213.13.242.18", 6697, True),   # Servidor Luna (PTNet) via SSL
+    ("194.65.14.37", 6697, True),    # Servidor Telepac (PTNet) via SSL
+    ("213.13.242.18", 6667, False),  # Servidor Luna (PTNet) sem SSL
+    ("194.65.14.37", 6667, False)    # Servidor Telepac (PTNet) sem SSL
+]
+
 NICK = "TheOG"  
 PASS = "Nasomet112#"
 CHANNEL = "#TheOG"
@@ -61,7 +66,6 @@ def send_raw(msg):
     except:
         pass
 
-# --- TAREFAS AUTOMÁTICAS ---
 def tarefas_periodicas():
     global irc_sock
     while True:
@@ -72,7 +76,6 @@ def tarefas_periodicas():
         except:
             pass
 
-# --- PROCESSAMENTO IRC ---
 def handle_irc_event(line):
     global dados, ultima_atividade
     
@@ -148,27 +151,30 @@ def handle_irc_event(line):
                 if pool:
                     send_raw(f"PRIVMSG {reply_to} :{random.choice(pool).replace('{u}', user)}")
 
-# --- LOOP DE LIGAÇÃO PRINCIPAL ---
 def run_bot():
     global irc_sock
     carregar_dados()
-    
-    servidor_atual_index = 0
+    indice_atual = 0
 
     while True:
-        server_alvo = SERVIDORES_POOL[servidor_atual_index]
+        ip_alvo, porto_alvo, usar_ssl = POOL_CONEXOES[indice_atual]
+        tipo_conexao = "SSL" if usar_ssl else "NORMAL"
+        
         try:
-            force_log(f"🛰️ Conectando via SSL a {server_alvo}:{PORT}...")
+            force_log(f"🛰️ Conectando via {tipo_conexao} ao IP {ip_alvo}:{porto_alvo}...")
             
             base_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            base_sock.settimeout(15)  # Timeout mais curto para não ficar preso caso barrem a rota
+            base_sock.settimeout(15)
             
-            context = ssl.create_default_context()
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
-            
-            irc_sock = context.wrap_socket(base_sock, server_hostname=server_alvo)
-            irc_sock.connect((server_alvo, PORT))
+            if usar_ssl:
+                context = ssl.create_default_context()
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                irc_sock = context.wrap_socket(base_sock, server_hostname="irc.ptnet.org")
+            else:
+                irc_sock = base_sock
+                
+            irc_sock.connect((ip_alvo, porto_alvo))
             irc_sock.settimeout(240)
             
             send_raw(f"PASS {PASS}")
@@ -179,7 +185,7 @@ def run_bot():
             while True:
                 data = irc_sock.recv(4096).decode("utf-8", errors="ignore")
                 if not data: 
-                    force_log("🔌 Conexão interrompida pelo host remoto.")
+                    force_log("🔌 Conexão interrompida pelo servidor.")
                     break
                 
                 buffer += data
@@ -194,29 +200,25 @@ def run_bot():
                         continue
 
                     if " 376 " in line or " 422 " in line:
-                        force_log(f"✅ Registado!")
+                        force_log(f"✅ Registado com sucesso!")
                         send_raw(f"PRIVMSG NickServ :IDENTIFY {PASS}")
                         send_raw(f"JOIN {CHANNEL}")
-                        send_raw(f"PRIVMSG {CHANNEL} :[TheOG Online]")
+                        send_raw(f"PRIVMSG {CHANNEL} :[TheOG Online via IP Direto]")
 
                     handle_irc_event(line)
 
         except Exception as e:
-            force_log(f"💥 Erro de conexão com {server_alvo}: {e}")
+            force_log(f"💥 Erro com o IP {ip_alvo}: {e}")
         
-        # Rotaciona para o próximo servidor se a ligação cair ou for recusada
-        servidor_atual_index = (servidor_atual_index + 1) % len(SERVIDORES_POOL)
-        
+        indice_atual = (indice_atual + 1) % len(POOL_CONEXOES)
         if irc_sock:
             try: irc_sock.close()
             except: pass
             irc_sock = None
         
-        # Reduzido o tempo de espera para forçar a reconexão imediata por outra rota
-        force_log("⏳ Alternando rota de ligação em 10 segundos...")
+        force_log("⏳ Alternando rota IP em 10 segundos...")
         time.sleep(10) 
 
-# --- FLASK ---
 app = Flask(__name__)
 @app.route('/')
 def home(): 
