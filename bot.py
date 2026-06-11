@@ -55,14 +55,18 @@ def send_raw(msg):
 
 # --- TAREFAS AUTOMÁTICAS ---
 def tarefas_periodicas():
+    global irc_sock
     while True:
-        # Envia um PING ao servidor a cada 2 minutos para evitar fecho por inatividade
-        time.sleep(120)
-        if irc_sock:
-            send_raw(f"PING {SERVER}")
-            
-        # Lógica de Reforço Positivo (2 Horas)
-        if dados and irc_sock:
+        try:
+            # Envia um PING ao servidor a cada 2 minutos para evitar fecho por inatividade
+            time.sleep(120)
+            if irc_sock:
+                send_raw(f"PING {SERVER}")
+                
+            # Lógica de Reforço Positivo (2 Horas)
+            if dados and irc_sock:
+                pass
+        except:
             pass
 
 # --- PROCESSAMENTO IRC ---
@@ -148,7 +152,6 @@ def handle_irc_event(line):
 def run_bot():
     global irc_sock
     carregar_dados()
-    threading.Thread(target=tarefas_periodicas, daemon=True).start()
 
     while True:
         try:
@@ -190,6 +193,7 @@ def run_bot():
         except Exception as e:
             force_log(f"💥 Erro inesperado: {e}")
         
+        # Limpeza segura do socket antigo antes de tentar ligar outra vez
         if irc_sock:
             try:
                 irc_sock.close()
@@ -197,8 +201,9 @@ def run_bot():
                 pass
             irc_sock = None
         
-        force_log("⏳ Aguardando 180 segundos (3 minutos) para reconectar...")
-        time.sleep(180) 
+        # Reduzido de 180s para 15s para evitar adormecimento no Render
+        force_log("⏳ Aguardando 15 segundos para reconectar...")
+        time.sleep(15) 
 
 # --- FLASK ---
 app = Flask(__name__)
@@ -207,5 +212,7 @@ def home(): return "TheOG Bot Online", 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    # Inicializa as threads apenas uma vez no arranque da app
+    threading.Thread(target=tarefas_periodicas, daemon=True).start()
     threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port), daemon=True).start()
     run_bot()
