@@ -19,8 +19,8 @@ def force_log(msg):
     print(f"[{timestamp}] [SISTEMA] {msg}")
     sys.stdout.flush()
 
-# --- CONFIGURAÇÃO IRC (Lista de servidores ativos para evitar erros de DNS) ---
-SERVIDORES_POOL = ["luna.ptnet.org", "irc.ptnet.org"]
+# --- CONFIGURAÇÃO IRC (Pool de servidores oficiais da PTNet) ---
+SERVIDORES_POOL = ["irc.ptnet.org", "luna.ptnet.org"]
 PORT = 6697  
 NICK = "TheOG"  
 PASS = "Nasomet112#"
@@ -68,7 +68,6 @@ def tarefas_periodicas():
         try:
             time.sleep(120)
             if irc_sock:
-                # Envia o PING usando um formato genérico para evitar dependência de variável estática
                 irc_sock.send(f"PING :ping\r\n".encode('utf-8'))
         except:
             pass
@@ -157,13 +156,12 @@ def run_bot():
     servidor_atual_index = 0
 
     while True:
-        # Seleciona o servidor atual da lista para tentar a ligação
         server_alvo = SERVIDORES_POOL[servidor_atual_index]
         try:
             force_log(f"🛰️ Conectando via SSL a {server_alvo}:{PORT}...")
             
             base_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            base_sock.settimeout(20)
+            base_sock.settimeout(15)  # Timeout mais curto para não ficar preso caso barrem a rota
             
             context = ssl.create_default_context()
             context.check_hostname = False
@@ -205,16 +203,18 @@ def run_bot():
 
         except Exception as e:
             force_log(f"💥 Erro de conexão com {server_alvo}: {e}")
-            # Se falhar, roda para o próximo servidor da lista no próximo loop
-            servidor_atual_index = (servidor_atual_index + 1) % len(SERVIDORES_POOL)
+        
+        # Rotaciona para o próximo servidor se a ligação cair ou for recusada
+        servidor_atual_index = (servidor_atual_index + 1) % len(SERVIDORES_POOL)
         
         if irc_sock:
             try: irc_sock.close()
             except: pass
             irc_sock = None
         
-        force_log("⏳ Aguardando 15 segundos para tentar nova rota...")
-        time.sleep(15) 
+        # Reduzido o tempo de espera para forçar a reconexão imediata por outra rota
+        force_log("⏳ Alternando rota de ligação em 10 segundos...")
+        time.sleep(10) 
 
 # --- FLASK ---
 app = Flask(__name__)
