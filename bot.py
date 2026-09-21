@@ -18,13 +18,12 @@ logging.basicConfig(
 )
 
 def force_log(msg):
-    """Log imediato e visível nos logs da Render"""
     timestamp = datetime.now().strftime('%H:%M:%S')
     print(f"[{timestamp}] [SISTEMA] {msg}", flush=True)
     sys.stdout.flush()
 
 # --- CONFIGURAÇÃO IRC ---
-SERVER = "irc.ptnet.org"          # Hostname oficial da PTnet (recomendado)
+SERVER = "irc.ptnet.org"
 PORT = 6667
 NICK = "TheOG"
 PASS = "Nasomet112#"
@@ -55,13 +54,13 @@ def send_raw(msg):
     try:
         if irc_sock:
             irc_sock.send(f"{msg}\r\n".encode('utf-8'))
-            # Log de comandos importantes (sem mostrar a password)
-            if not msg.startswith("PASS ") and not "IDENTIFY" in msg and not "GHOST" in msg:
-                force_log(f"→ Enviado: {msg}")
+            safe = msg
+            if msg.upper().startswith("PASS ") or "IDENTIFY" in msg.upper() or "GHOST" in msg.upper():
+                safe = msg.split(" ", 1)[0] + " ***"
+            force_log(f"→ {safe}")
     except Exception as e:
-        force_log(f"❌ Erro ao enviar mensagem: {e}")
+        force_log(f"❌ Erro ao enviar: {e}")
 
-# --- TAREFAS AUTOMÁTICAS ---
 def tarefas_periodicas():
     while True:
         time.sleep(120)
@@ -69,16 +68,18 @@ def tarefas_periodicas():
             send_raw(f"PING {SERVER}")
             force_log("💓 Keep-alive PING enviado")
 
-# --- PROCESSAMENTO IRC ---
 def handle_irc_event(line):
     global dados, ultima_atividade
 
-    # Log de todas as linhas importantes do servidor
-    if any(x in line for x in [" 001 ", " 002 ", " 003 ", " 004 ", " 005 ", " 251 ", " 255 ", " 375 ", " 376 ", " 422 ", " 433 ", " JOIN ", " PRIVMSG "]):
-        force_log(f"← {line[:200]}")
+    # Log de TUDO o que o servidor envia
+    force_log(f"← {line}")
 
     if line.startswith("PING"):
         send_raw(f"PONG {line.split()[1]}")
+        return
+
+    if line.startswith("ERROR") or "Closing Link" in line:
+        force_log(f"🛑 SERVIDOR FECHOU A LIGAÇÃO: {line}")
         return
 
     # Boas-vindas (30%)
@@ -139,7 +140,6 @@ def handle_irc_event(line):
                 if pool:
                     send_raw(f"PRIVMSG {reply_to} :{random.choice(pool).replace('{u}', user)}")
 
-# --- LOOP PRINCIPAL ---
 def run_bot():
     global irc_sock
     carregar_dados()
@@ -147,23 +147,21 @@ def run_bot():
 
     while True:
         try:
-            force_log("=" * 50)
+            force_log("=" * 60)
             force_log(f"🛰️  A ligar a {SERVER}:{PORT} ...")
-            
-            # Resolve o hostname para IP (para log)
+
             try:
                 resolved_ip = socket.gethostbyname(SERVER)
-                force_log(f"📍 Hostname {SERVER} resolveu para IP: {resolved_ip}")
+                force_log(f"📍 {SERVER} → {resolved_ip}")
             except Exception as e:
-                force_log(f"⚠️ Não foi possível resolver DNS: {e}")
+                force_log(f"⚠️ DNS falhou: {e}")
 
             irc_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             irc_sock.settimeout(240)
-            irc_sock.connect((SERVER, PORT))   # ← Usa o hostname, não um IP fixo errado
-            
-            force_log("✅ Socket ligado com sucesso!")
+            irc_sock.connect((SERVER, PORT))
+            force_log("✅ Socket ligado!")
 
-            send_raw(f"PASS {PASS}")
+            # NÃO enviar PASS aqui (é password de servidor, não do NickServ)
             send_raw(f"NICK {NICK}")
             send_raw(f"USER {NICK} 8 * :TheOG Bot")
 
@@ -171,42 +169,41 @@ def run_bot():
             while True:
                 data = irc_sock.recv(4096).decode("utf-8", errors="ignore")
                 if not data:
-                    force_log("🔌 Conexão fechada pelo servidor remoto.")
+                    force_log("🔌 Conexão fechada pelo servidor (recv vazio).")
                     break
 
                 buffer += data
                 while "\r\n" in buffer:
                     line, buffer = buffer.split("\r\n", 1)
 
-                    # Nick em uso
                     if " 433 " in line:
-                        force_log("⚠️ Nick ocupado. A tentar recuperar com GHOST...")
+                        force_log("⚠️ Nick ocupado → a tentar GHOST...")
                         send_raw(f"PRIVMSG NickServ :GHOST {NICK} {PASS}")
                         time.sleep(2)
                         send_raw(f"NICK {NICK}")
                         continue
 
-                    # Ligação bem sucedida (End of MOTD ou No MOTD)
+                    if " 001 " in line:
+                        force_log("🎉 WELCOME recebido (001) — estamos registados no servidor!")
+
                     if " 376 " in line or " 422 " in line:
-                        force_log("🎉 REGISTADO COM SUCESSO NO SERVIDOR!")
-                        force_log("🔑 A identificar no NickServ...")
+                        force_log("✅ Fim do MOTD — a identificar no NickServ...")
                         send_raw(f"PRIVMSG NickServ :IDENTIFY {PASS}")
-                        time.sleep(1)
+                        time.sleep(1.5)
                         force_log(f"🚪 A entrar no canal {CHANNEL}...")
                         send_raw(f"JOIN {CHANNEL}")
                         send_raw(f"PRIVMSG {CHANNEL} :[TheOG Online]")
-                        force_log("✅ Bot deve estar agora online no canal!")
+                        force_log("✅ Comandos de JOIN enviados.")
 
                     handle_irc_event(line)
 
         except socket.timeout:
-            force_log("⏰ Timeout na ligação/receção.")
+            force_log("⏰ Timeout.")
         except ConnectionRefusedError:
-            force_log("❌ Ligação recusada pelo servidor.")
+            force_log("❌ Ligação recusada.")
         except Exception as e:
-            force_log(f"💥 Erro inesperado: {type(e).__name__}: {e}")
+            force_log(f"💥 Erro: {type(e).__name__}: {e}")
 
-        # Limpeza
         if irc_sock:
             try:
                 irc_sock.close()
@@ -214,10 +211,10 @@ def run_bot():
                 pass
             irc_sock = None
 
-        force_log("⏳ Aguardando 180 segundos antes de tentar novamente...")
+        force_log("⏳ Aguardar 180 segundos antes de nova tentativa...")
         time.sleep(180)
 
-# --- FLASK (para a Render não matar o serviço) ---
+# --- FLASK ---
 app = Flask(__name__)
 
 @app.route('/')
