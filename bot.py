@@ -19,7 +19,8 @@ def force_log(msg):
     sys.stdout.flush()
 
 # --- CONFIGURAÇÃO IRC ---
-SERVER = "irc.ptnet.org"
+SERVER = "irc.ptnet.org"        # usado apenas em PING/logs
+SERVER_IP = "74.220.51.162"     # IP autorizado pela ptnet, usado para ligar
 PORT = 6667
 NICK = "TheOG"  
 PASS = "Nasomet112#"
@@ -147,10 +148,10 @@ def run_bot():
 
     while True:
         try:
-            force_log(f"🛰️ Conectando...")
+            force_log(f"🛰️ Conectando diretamente a {SERVER_IP}:{PORT}...")
             irc_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             irc_sock.settimeout(240)
-            irc_sock.connect((SERVER, PORT))
+            irc_sock.connect((SERVER_IP, PORT))
             
             send_raw(f"PASS {PASS}")
             send_raw(f"NICK {NICK}")
@@ -205,5 +206,3 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port), daemon=True).start()
     run_bot()
-
-
