@@ -30,15 +30,30 @@ PASS = "Nasomet112#"
 CHANNEL = "#TheOG"
 
 # --- INTERVALOS DAS NOVAS FUNCIONALIDADES (em segundos) ---
-INTERVALO_ANEDOTAS = 40 * 60   # 40 em 40 minutos
-INTERVALO_REFORCO = 90 * 60    # hora e meia em hora e meia
+INTERVALO_REFORCO = 90 * 60      # hora e meia em hora e meia
+INTERVALO_INTERACAO = 2 * 60 * 60  # de 2 em 2 horas
+INTERVALO_PIROPOS = 60 * 60      # de hora a hora
+
+PRIS_NICK = "Pris"
+LIMITE_PIROPOS_ANTES_FRUSTRACAO = 3  # a partir de quantas tentativas sem resposta passa a ficar frustrado
+
+# Utilizadores com saudação especial: nick (minúsculas) -> chave da lista em extras.json
+USERS_ESPECIAIS = {
+    "cutxiiipoint": "mensagens_carinhosas",
+    "nonamegirl": "mensagens_carinhosas",
+    "padre": "mensagens_masculinas",
+    "emergency112": "mensagens_masculinas",
+}
 
 # --- ESTADO GLOBAL ---
 START_TIME = datetime.now()
 dados = {}
 extras = {}
 ultima_atividade = {}
+contador_piropos_sem_resposta = 0
 irc_sock = None
+names_buffer = []
+avisados_na_lista = set()  # evita repetir a msg especial várias vezes na mesma verificação NAMES
 JSON_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frases.json')
 EXTRAS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'extras.json')
 
@@ -95,6 +110,16 @@ def saudacao_por_hora(user):
         return None
     return random.choice(pool).replace('{u}', user)
 
+def mensagem_especial(user):
+    """Devolve uma mensagem carinhosa/masculina aleatória se o nick for um dos utilizadores especiais."""
+    chave = USERS_ESPECIAIS.get(user.lower())
+    if not chave:
+        return None
+    pool = extras.get(chave, [])
+    if not pool:
+        return None
+    return random.choice(pool).replace('{u}', user)
+
 def tarefas_periodicas():
     """Keep-alive PING a cada 120s."""
     while True:
@@ -102,17 +127,6 @@ def tarefas_periodicas():
         if irc_sock:
             send_raw(f"PING {SERVER}")
             force_log("💓 Keep-alive PING enviado")
-
-def tarefa_anedotas():
-    """Envia uma anedota seca ao canal de 40 em 40 minutos."""
-    while True:
-        time.sleep(INTERVALO_ANEDOTAS)
-        if irc_sock:
-            anedotas = extras.get("anedotas", [])
-            if anedotas:
-                anedota = random.choice(anedotas)
-                send_raw(f"PRIVMSG {CHANNEL} :😐 {anedota}")
-                force_log("😐 Anedota seca enviada.")
 
 def tarefa_reforco_positivo():
     """Envia uma mensagem de reforço positivo de hora e meia em hora e meia."""
@@ -125,8 +139,37 @@ def tarefa_reforco_positivo():
                 send_raw(f"PRIVMSG {CHANNEL} :{mensagem}")
                 force_log("💪 Reforço positivo enviado.")
 
+def tarefa_interacao():
+    """Envia uma mensagem de interação com os utilizadores de 2 em 2 horas."""
+    while True:
+        time.sleep(INTERVALO_INTERACAO)
+        if irc_sock:
+            pool = extras.get("mensagens_interacao", [])
+            if pool:
+                mensagem = random.choice(pool)
+                send_raw(f"PRIVMSG {CHANNEL} :{mensagem}")
+                force_log("💬 Mensagem de interação enviada.")
+
+def tarefa_piropos_pris():
+    """De hora a hora, manda um piropo à Pris; se ela nunca responder, o tom vai ficando frustrado."""
+    global contador_piropos_sem_resposta
+    while True:
+        time.sleep(INTERVALO_PIROPOS)
+        if irc_sock:
+            if contador_piropos_sem_resposta < LIMITE_PIROPOS_ANTES_FRUSTRACAO:
+                pool = extras.get("piropos_pris", [])
+                tipo = "😳 piropo"
+            else:
+                pool = extras.get("frustracao_pris", [])
+                tipo = "😔 frustração"
+            if pool:
+                mensagem = random.choice(pool)
+                send_raw(f"PRIVMSG {CHANNEL} :{mensagem}")
+                force_log(f"{tipo} enviado(a) à Pris.")
+            contador_piropos_sem_resposta += 1
+
 def handle_irc_event(line):
-    global dados, ultima_atividade
+    global dados, ultima_atividade, contador_piropos_sem_resposta, names_buffer
 
     # Log de TUDO o que o servidor envia
     force_log(f"← {line}")
@@ -139,7 +182,28 @@ def handle_irc_event(line):
         force_log(f"🛑 SERVIDOR FECHOU A LIGAÇÃO: {line}")
         return
 
-    # Boas-vindas consoante a hora do dia
+    # --- Lista de utilizadores do canal (resposta a NAMES / entrada automática após JOIN) ---
+    if " 353 " in line:
+        m = re.match(r'^:\S+ 353 \S+ [=*@] (\S+) :(.*)$', line)
+        if m:
+            nomes = m.group(2).split()
+            for nome in nomes:
+                nome_limpo = nome.lstrip("@+%~&")
+                if nome_limpo and nome_limpo != NICK:
+                    names_buffer.append(nome_limpo)
+        return
+
+    if " 366 " in line:
+        # Fim da lista de utilizadores: verifica quem já está lá
+        for nome in names_buffer:
+            mensagem = mensagem_especial(nome)
+            if mensagem:
+                send_raw(f"PRIVMSG {CHANNEL} :{mensagem}")
+                force_log(f"💌 Mensagem especial enviada a {nome} (já estava na sala).")
+        names_buffer = []
+        return
+
+    # Boas-vindas consoante a hora do dia + mensagem especial para utilizadores específicos
     if " JOIN " in line:
         m = re.match(r'^:([^! ]+)!.* JOIN :?#.*', line)
         if m:
@@ -149,6 +213,10 @@ def handle_irc_event(line):
                 saudacao = saudacao_por_hora(user_join)
                 if saudacao:
                     send_raw(f"PRIVMSG {CHANNEL} :{saudacao}")
+                especial = mensagem_especial(user_join)
+                if especial:
+                    send_raw(f"PRIVMSG {CHANNEL} :{especial}")
+                    force_log(f"💌 Mensagem especial enviada a {user_join} (entrou agora).")
 
     # Comandos
     if " PRIVMSG " in line:
@@ -168,18 +236,21 @@ def handle_irc_event(line):
         is_channel = target.startswith("#")
         reply_to = target if is_channel else user
 
+        # Se a Pris finalmente responder/mencionar o bot, acaba a frustração
+        if user.lower() == PRIS_NICK.lower() and NICK.lower() in msg_lower:
+            contador_piropos_sem_resposta = 0
+            pool = extras.get("pris_resposta_feliz", [])
+            if pool:
+                send_raw(f"PRIVMSG {CHANNEL} :{random.choice(pool)}")
+                force_log("🎉 Pris respondeu! Frustração reiniciada.")
+
         if cmd == "!comandos":
-            send_raw(f"PRIVMSG {user} :🛠️ !uptime, !historia, !prenda, !lapada, !radio, !anedota")
+            send_raw(f"PRIVMSG {user} :🛠️ !uptime, !historia, !prenda, !lapada, !radio")
             return
         if cmd == "!radio":
             radios = dados.get("radios_online", [])
             msg_r = "📻 Rádios: " + ", ".join([f"{r['nome']} ({r['url']})" for r in radios])
             send_raw(f"PRIVMSG {user} :{msg_r}")
-            return
-        if cmd == "!anedota":
-            anedotas = extras.get("anedotas", [])
-            if anedotas:
-                send_raw(f"PRIVMSG {reply_to} :😐 {random.choice(anedotas)}")
             return
         if cmd == "!uptime":
             delta = datetime.now() - START_TIME
@@ -206,8 +277,9 @@ def run_bot():
     carregar_dados()
     carregar_extras()
     threading.Thread(target=tarefas_periodicas, daemon=True).start()
-    threading.Thread(target=tarefa_anedotas, daemon=True).start()
     threading.Thread(target=tarefa_reforco_positivo, daemon=True).start()
+    threading.Thread(target=tarefa_interacao, daemon=True).start()
+    threading.Thread(target=tarefa_piropos_pris, daemon=True).start()
 
     while True:
         try:
@@ -257,6 +329,8 @@ def run_bot():
                         force_log(f"🚪 A entrar no canal {CHANNEL}...")
                         send_raw(f"JOIN {CHANNEL}")
                         send_raw(f"PRIVMSG {CHANNEL} :[TheOG Online]")
+                        time.sleep(1)
+                        send_raw(f"NAMES {CHANNEL}")
                         force_log("✅ Comandos de JOIN enviados.")
 
                     handle_irc_event(line)
