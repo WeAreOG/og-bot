@@ -29,12 +29,18 @@ NICK = "TheOG"
 PASS = "Nasomet112#"
 CHANNEL = "#TheOG"
 
+# --- INTERVALOS DAS NOVAS FUNCIONALIDADES (em segundos) ---
+INTERVALO_ANEDOTAS = 40 * 60   # 40 em 40 minutos
+INTERVALO_REFORCO = 90 * 60    # hora e meia em hora e meia
+
 # --- ESTADO GLOBAL ---
 START_TIME = datetime.now()
 dados = {}
+extras = {}
 ultima_atividade = {}
 irc_sock = None
 JSON_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frases.json')
+EXTRAS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'extras.json')
 
 def carregar_dados():
     global dados
@@ -49,6 +55,19 @@ def carregar_dados():
     except Exception as e:
         force_log(f"🔥 Erro ao carregar JSON: {e}")
 
+def carregar_extras():
+    global extras
+    try:
+        if os.path.exists(EXTRAS_FILE):
+            with open(EXTRAS_FILE, 'r', encoding='utf-8') as f:
+                extras = json.load(f)
+            force_log("✅ extras.json carregado com sucesso.")
+        else:
+            force_log("❌ extras.json não encontrado!")
+            extras = {}
+    except Exception as e:
+        force_log(f"🔥 Erro ao carregar extras.json: {e}")
+
 def send_raw(msg):
     global irc_sock
     try:
@@ -61,12 +80,50 @@ def send_raw(msg):
     except Exception as e:
         force_log(f"❌ Erro ao enviar: {e}")
 
+def saudacao_por_hora(user):
+    """Devolve uma saudação neutra mas simpática, de acordo com a hora do dia."""
+    hora = datetime.now().hour
+    if 5 <= hora < 12:
+        chave = "saudacoes_manha"
+    elif 12 <= hora < 20:
+        chave = "saudacoes_tarde"
+    else:
+        chave = "saudacoes_noite"
+
+    pool = extras.get(chave, [])
+    if not pool:
+        return None
+    return random.choice(pool).replace('{u}', user)
+
 def tarefas_periodicas():
+    """Keep-alive PING a cada 120s."""
     while True:
         time.sleep(120)
         if irc_sock:
             send_raw(f"PING {SERVER}")
             force_log("💓 Keep-alive PING enviado")
+
+def tarefa_anedotas():
+    """Envia uma anedota seca ao canal de 40 em 40 minutos."""
+    while True:
+        time.sleep(INTERVALO_ANEDOTAS)
+        if irc_sock:
+            anedotas = extras.get("anedotas", [])
+            if anedotas:
+                anedota = random.choice(anedotas)
+                send_raw(f"PRIVMSG {CHANNEL} :😐 {anedota}")
+                force_log("😐 Anedota seca enviada.")
+
+def tarefa_reforco_positivo():
+    """Envia uma mensagem de reforço positivo de hora e meia em hora e meia."""
+    while True:
+        time.sleep(INTERVALO_REFORCO)
+        if irc_sock:
+            pool = extras.get("reforco_positivo", [])
+            if pool:
+                mensagem = random.choice(pool)
+                send_raw(f"PRIVMSG {CHANNEL} :{mensagem}")
+                force_log("💪 Reforço positivo enviado.")
 
 def handle_irc_event(line):
     global dados, ultima_atividade
@@ -82,17 +139,16 @@ def handle_irc_event(line):
         force_log(f"🛑 SERVIDOR FECHOU A LIGAÇÃO: {line}")
         return
 
-    # Boas-vindas (30%)
+    # Boas-vindas consoante a hora do dia
     if " JOIN " in line:
         m = re.match(r'^:([^! ]+)!.* JOIN :?#.*', line)
         if m:
             user_join = m.group(1)
             if user_join != NICK:
                 ultima_atividade[user_join] = time.time()
-                if random.random() < 0.30:
-                    saudacoes = dados.get("saudacoes", [])
-                    if saudacoes:
-                        send_raw(f"PRIVMSG {CHANNEL} :{random.choice(saudacoes).replace('{u}', user_join)}")
+                saudacao = saudacao_por_hora(user_join)
+                if saudacao:
+                    send_raw(f"PRIVMSG {CHANNEL} :{saudacao}")
 
     # Comandos
     if " PRIVMSG " in line:
@@ -113,12 +169,17 @@ def handle_irc_event(line):
         reply_to = target if is_channel else user
 
         if cmd == "!comandos":
-            send_raw(f"PRIVMSG {user} :🛠️ !uptime, !historia, !prenda, !lapada, !radio")
+            send_raw(f"PRIVMSG {user} :🛠️ !uptime, !historia, !prenda, !lapada, !radio, !anedota")
             return
         if cmd == "!radio":
             radios = dados.get("radios_online", [])
             msg_r = "📻 Rádios: " + ", ".join([f"{r['nome']} ({r['url']})" for r in radios])
             send_raw(f"PRIVMSG {user} :{msg_r}")
+            return
+        if cmd == "!anedota":
+            anedotas = extras.get("anedotas", [])
+            if anedotas:
+                send_raw(f"PRIVMSG {reply_to} :😐 {random.choice(anedotas)}")
             return
         if cmd == "!uptime":
             delta = datetime.now() - START_TIME
@@ -143,7 +204,10 @@ def handle_irc_event(line):
 def run_bot():
     global irc_sock
     carregar_dados()
+    carregar_extras()
     threading.Thread(target=tarefas_periodicas, daemon=True).start()
+    threading.Thread(target=tarefa_anedotas, daemon=True).start()
+    threading.Thread(target=tarefa_reforco_positivo, daemon=True).start()
 
     while True:
         try:
