@@ -1,0 +1,38 @@
+{
+  "saudacoes_manha": [
+    "Bom dia, {u}! ☀️",
+    "Bom dia, {u}, bem-vindo/a à sala.",
+    "Olá {u}, bom dia por aí!",
+    "Bom dia {u}, entra à vontade."
+  ],
+  "saudacoes_tarde": [
+    "Boa tarde, {u}! 👋",
+    "Boa tarde {u}, seja bem-vindo/a.",
+    "Olá {u}, boa tarde!",
+    "Boa tarde, {u}, entra à vontade."
+  ],
+  "saudacoes_noite": [
+    "Boa noite, {u}! 🌙",
+    "Boa noite {u}, bem-vindo/a à sala.",
+    "Olá {u}, boa noite por aí!",
+    "Boa noite, {u}, sente-se à vontade."
+  ],
+  "anedotas": [
+    "Porque é que o livro de matemática está sempre triste? Porque tem demasiados problemas.",
+    "Sabem porque é que o computador foi ao médico? Porque tinha um vírus.",
+    "Qual é o contrário de volátil? Vem cá.",
+    "Fui ao dentista e perguntei se tinha cárie. Ele disse: cárie contigo.",
+    "Porque é que os passarinhos não usam Facebook? Porque já têm Twitter.",
+    "O que disse a impressora à outra? Isto é entre nós, ok?",
+    "Sabem qual é o pior aviso? Aviso prévio.",
+    "Porque é que o programador foi ao psicólogo? Tinha um bug interior por resolver."
+  ],
+  "reforco_positivo": [
+    "Lembrem-se: cada um de vocês traz algo bom a esta sala. 🙂",
+    "Bom trabalho por estarem aqui, a manter a conversa viva!",
+    "Obrigado por fazerem parte desta comunidade, vocês são o que dá vida a isto.",
+    "Um pequeno lembrete: estão a fazer um ótimo trabalho, só por estarem presentes.",
+    "A sala é melhor com cada um de vocês nela. Continuem assim!",
+    "Nunca é demais dizer: valorizem-se, vocês merecem."
+  ]
+}
