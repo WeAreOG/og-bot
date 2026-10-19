@@ -29,18 +29,16 @@ NICK = "TheOG"
 PASS = "Nasomet112#"
 CHANNEL = "#TheOG"
 
-# --- INTERVALOS DAS NOVAS FUNCIONALIDADES (em segundos) ---
-INTERVALO_REFORCO = 90 * 60      # hora e meia em hora e meia
-INTERVALO_INTERACAO = 2 * 60 * 60  # de 2 em 2 horas
-INTERVALO_PIROPOS = 60 * 60      # de hora a hora
+# --- INTERVALOS (em segundos) ---
+INTERVALO_INTERACAO = 2 * 60 * 60   # de 2 em 2 horas
+INTERVALO_PIROPOS = 60 * 60         # de hora a hora
 
 PRIS_NICK = "Pris"
-LIMITE_PIROPOS_ANTES_FRUSTRACAO = 3  # a partir de quantas tentativas sem resposta passa a ficar frustrado
+LIMITE_PIROPOS_ANTES_FRUSTRACAO = 3
 
-# Utilizadores com saudação especial: nick (minúsculas) -> chave da lista em extras.json
+# Utilizadores com saudação especial
 USERS_ESPECIAIS = {
     "cutxiiipoint": "mensagens_carinhosas",
-    "nonamegirl": "mensagens_carinhosas",
     "padre": "mensagens_masculinas",
     "emergency112": "mensagens_masculinas",
 }
@@ -53,9 +51,12 @@ ultima_atividade = {}
 contador_piropos_sem_resposta = 0
 irc_sock = None
 names_buffer = []
-avisados_na_lista = set()  # evita repetir a msg especial várias vezes na mesma verificação NAMES
+avisados_na_lista = set()
+primeira_ligacao = True          # controla se é a primeira vez ou um regresso
+
 JSON_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frases.json')
 EXTRAS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'extras.json')
+
 
 def carregar_dados():
     global dados
@@ -70,6 +71,7 @@ def carregar_dados():
     except Exception as e:
         force_log(f"🔥 Erro ao carregar JSON: {e}")
 
+
 def carregar_extras():
     global extras
     try:
@@ -83,6 +85,7 @@ def carregar_extras():
     except Exception as e:
         force_log(f"🔥 Erro ao carregar extras.json: {e}")
 
+
 def send_raw(msg):
     global irc_sock
     try:
@@ -95,6 +98,7 @@ def send_raw(msg):
     except Exception as e:
         force_log(f"❌ Erro ao enviar: {e}")
 
+
 def saudacao_por_hora(user):
     """Devolve uma saudação neutra mas simpática, de acordo com a hora do dia."""
     hora = datetime.now().hour
@@ -104,11 +108,11 @@ def saudacao_por_hora(user):
         chave = "saudacoes_tarde"
     else:
         chave = "saudacoes_noite"
-
     pool = extras.get(chave, [])
     if not pool:
         return None
     return random.choice(pool).replace('{u}', user)
+
 
 def mensagem_especial(user):
     """Devolve uma mensagem carinhosa/masculina aleatória se o nick for um dos utilizadores especiais."""
@@ -120,6 +124,7 @@ def mensagem_especial(user):
         return None
     return random.choice(pool).replace('{u}', user)
 
+
 def tarefas_periodicas():
     """Keep-alive PING a cada 120s."""
     while True:
@@ -128,16 +133,6 @@ def tarefas_periodicas():
             send_raw(f"PING {SERVER}")
             force_log("💓 Keep-alive PING enviado")
 
-def tarefa_reforco_positivo():
-    """Envia uma mensagem de reforço positivo de hora e meia em hora e meia."""
-    while True:
-        time.sleep(INTERVALO_REFORCO)
-        if irc_sock:
-            pool = extras.get("reforco_positivo", [])
-            if pool:
-                mensagem = random.choice(pool)
-                send_raw(f"PRIVMSG {CHANNEL} :{mensagem}")
-                force_log("💪 Reforço positivo enviado.")
 
 def tarefa_interacao():
     """Envia uma mensagem de interação com os utilizadores de 2 em 2 horas."""
@@ -149,6 +144,7 @@ def tarefa_interacao():
                 mensagem = random.choice(pool)
                 send_raw(f"PRIVMSG {CHANNEL} :{mensagem}")
                 force_log("💬 Mensagem de interação enviada.")
+
 
 def tarefa_piropos_pris():
     """De hora a hora, manda um piropo à Pris; se ela nunca responder, o tom vai ficando frustrado."""
@@ -168,10 +164,10 @@ def tarefa_piropos_pris():
                 force_log(f"{tipo} enviado(a) à Pris.")
             contador_piropos_sem_resposta += 1
 
+
 def handle_irc_event(line):
     global dados, ultima_atividade, contador_piropos_sem_resposta, names_buffer
 
-    # Log de TUDO o que o servidor envia
     force_log(f"← {line}")
 
     if line.startswith("PING"):
@@ -182,7 +178,7 @@ def handle_irc_event(line):
         force_log(f"🛑 SERVIDOR FECHOU A LIGAÇÃO: {line}")
         return
 
-    # --- Lista de utilizadores do canal (resposta a NAMES / entrada automática após JOIN) ---
+    # --- Lista de utilizadores do canal (resposta a NAMES) ---
     if " 353 " in line:
         m = re.match(r'^:\S+ 353 \S+ [=*@] (\S+) :(.*)$', line)
         if m:
@@ -194,7 +190,6 @@ def handle_irc_event(line):
         return
 
     if " 366 " in line:
-        # Fim da lista de utilizadores: verifica quem já está lá
         for nome in names_buffer:
             mensagem = mensagem_especial(nome)
             if mensagem:
@@ -203,7 +198,7 @@ def handle_irc_event(line):
         names_buffer = []
         return
 
-    # Boas-vindas consoante a hora do dia + mensagem especial para utilizadores específicos
+    # Boas-vindas consoante a hora do dia + mensagem especial
     if " JOIN " in line:
         m = re.match(r'^:([^! ]+)!.* JOIN :?#.*', line)
         if m:
@@ -223,7 +218,6 @@ def handle_irc_event(line):
         m = re.match(r'^:([^! ]+)!.* PRIVMSG ([^ ]+) :(.*)$', line)
         if not m:
             return
-
         user, target, message = m.group(1), m.group(2), m.group(3)
         msg_clean = re.sub(r'\x03(?:\d{1,2}(?:,\d{1,2})?)?|[\x02\x0F\x16\x1D\x1F]', '', message).strip()
         msg_lower = msg_clean.lower()
@@ -236,7 +230,7 @@ def handle_irc_event(line):
         is_channel = target.startswith("#")
         reply_to = target if is_channel else user
 
-        # Se a Pris finalmente responder/mencionar o bot, acaba a frustração
+        # Se a Pris responder/mencionar o bot, reinicia a frustração
         if user.lower() == PRIS_NICK.lower() and NICK.lower() in msg_lower:
             contador_piropos_sem_resposta = 0
             pool = extras.get("pris_resposta_feliz", [])
@@ -247,37 +241,45 @@ def handle_irc_event(line):
         if cmd == "!comandos":
             send_raw(f"PRIVMSG {user} :🛠️ !uptime, !historia, !prenda, !lapada, !radio")
             return
+
         if cmd == "!radio":
             radios = dados.get("radios_online", [])
             msg_r = "📻 Rádios: " + ", ".join([f"{r['nome']} ({r['url']})" for r in radios])
             send_raw(f"PRIVMSG {user} :{msg_r}")
             return
+
         if cmd == "!uptime":
             delta = datetime.now() - START_TIME
-            send_raw(f"PRIVMSG {reply_to} :🚀 Online há {delta.days}d {delta.seconds//3600}h")
+            send_raw(f"PRIVMSG {reply_to} :🚀 Online há {delta.days}d {delta.seconds // 3600}h")
+
         elif cmd == "!historia":
             for linha in dados.get("historia_theog", []):
                 send_raw(f"PRIVMSG {reply_to} :{linha}")
+
         elif cmd == "!prenda":
             alvo = partes[1] if len(partes) > 1 else user
             frase = random.choice(dados.get("prendas", ["prenda para {u}"]))
             send_raw(f"PRIVMSG {reply_to} :\x01ACTION {frase.replace('{u}', alvo)}\x01")
+
         elif cmd == "!lapada":
             alvo = partes[1] if len(partes) > 1 else user
             frase = random.choice(dados.get("lapadas", ["lapada em {u}"]))
             send_raw(f"PRIVMSG {reply_to} :\x01ACTION {frase.replace('{u}', alvo)}\x01")
+
         elif NICK.lower() in msg_lower:
             if random.random() < 0.40:
                 pool = dados.get("saudacoes", []) + dados.get("evasivas", [])
                 if pool:
                     send_raw(f"PRIVMSG {reply_to} :{random.choice(pool).replace('{u}', user)}")
 
+
 def run_bot():
-    global irc_sock
+    global irc_sock, primeira_ligacao
+
     carregar_dados()
     carregar_extras()
+
     threading.Thread(target=tarefas_periodicas, daemon=True).start()
-    threading.Thread(target=tarefa_reforco_positivo, daemon=True).start()
     threading.Thread(target=tarefa_interacao, daemon=True).start()
     threading.Thread(target=tarefa_piropos_pris, daemon=True).start()
 
@@ -297,7 +299,6 @@ def run_bot():
             irc_sock.connect((SERVER, PORT))
             force_log("✅ Socket ligado!")
 
-            # NÃO enviar PASS aqui (é password de servidor, não do NickServ)
             send_raw(f"NICK {NICK}")
             send_raw(f"USER {NICK} 8 * :TheOG Bot")
 
@@ -305,62 +306,4 @@ def run_bot():
             while True:
                 data = irc_sock.recv(4096).decode("utf-8", errors="ignore")
                 if not data:
-                    force_log("🔌 Conexão fechada pelo servidor (recv vazio).")
-                    break
-
-                buffer += data
-                while "\r\n" in buffer:
-                    line, buffer = buffer.split("\r\n", 1)
-
-                    if " 433 " in line:
-                        force_log("⚠️ Nick ocupado → a tentar GHOST...")
-                        send_raw(f"PRIVMSG NickServ :GHOST {NICK} {PASS}")
-                        time.sleep(2)
-                        send_raw(f"NICK {NICK}")
-                        continue
-
-                    if " 001 " in line:
-                        force_log("🎉 WELCOME recebido (001) — estamos registados no servidor!")
-
-                    if " 376 " in line or " 422 " in line:
-                        force_log("✅ Fim do MOTD — a identificar no NickServ...")
-                        send_raw(f"PRIVMSG NickServ :IDENTIFY {PASS}")
-                        time.sleep(1.5)
-                        force_log(f"🚪 A entrar no canal {CHANNEL}...")
-                        send_raw(f"JOIN {CHANNEL}")
-                        send_raw(f"PRIVMSG {CHANNEL} :[TheOG Online]")
-                        time.sleep(1)
-                        send_raw(f"NAMES {CHANNEL}")
-                        force_log("✅ Comandos de JOIN enviados.")
-
-                    handle_irc_event(line)
-
-        except socket.timeout:
-            force_log("⏰ Timeout.")
-        except ConnectionRefusedError:
-            force_log("❌ Ligação recusada.")
-        except Exception as e:
-            force_log(f"💥 Erro: {type(e).__name__}: {e}")
-
-        if irc_sock:
-            try:
-                irc_sock.close()
-            except:
-                pass
-            irc_sock = None
-
-        force_log("⏳ Aguardar 180 segundos antes de nova tentativa...")
-        time.sleep(180)
-
-# --- FLASK ---
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "TheOG Bot Online", 200
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=port), daemon=True).start()
-    force_log("🚀 Bot a iniciar...")
-    run_bot()
+                    force_log("🔌 Conexão fechada pelo servidor 
